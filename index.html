@@ -9,6 +9,33 @@
   <title>MongoDB High Availability Visualizer</title>
   <link rel="stylesheet" href="main.css">
   <link rel="icon" type="image/png" href="img/mdb-database.png">
+  <style>
+    /* --- Animated Arrow Styles --- */
+    .arrow-svg {
+      position: absolute;
+      left: 0; top: 0;
+      pointer-events: none;
+      z-index: 0;
+      width: 100%; height: 100%;
+      overflow: visible;
+    }
+    .arrow-path {
+      stroke: var(--primary-green, #13aa52);
+      stroke-width: 4;
+      fill: none;
+      marker-end: url(#arrowhead);
+      stroke-dasharray: 12 8;
+      animation: arrow-move 1s linear infinite;
+    }
+    @keyframes arrow-move {
+      to { stroke-dashoffset: -20; }
+    }
+    /* Make sure nodes are above arrows */
+    #visualization-container .node {
+      position: absolute;
+      z-index: 1;
+    }
+  </style>
 </head>
 <body>
 
@@ -177,6 +204,9 @@
 
           vizContainer.appendChild(nodeEl);
         }
+
+        // After all nodes are created, draw arrows
+        setTimeout(drawPrimaryArrows, 0); // Wait for DOM update
       } else {
         // --- Square grid layout for multi-region ---
         // Group nodes by region
@@ -343,6 +373,10 @@
         electNewPrimary();
       }
 
+      // Redraw arrows if in single-region mode
+      if (appState.regionMode === 'single') {
+        setTimeout(drawPrimaryArrows, 0);
+      }
       updateStatus();
     }
 
@@ -414,6 +448,7 @@
       if (appState.regionMode !== mode) {
         appState.regionMode = mode;
         generateNodes(appState.totalNodes);
+        // Arrows are handled in generateNodes
       }
     }
 
@@ -488,6 +523,11 @@
         newLabel.classList.remove('secondary');
         newLabel.classList.add('primary');
       }
+
+      // Redraw arrows if in single-region mode
+      if (appState.regionMode === 'single') {
+        setTimeout(drawPrimaryArrows, 0);
+      }
     }
 
 
@@ -540,8 +580,88 @@
      * Resets the app to its original state: all nodes available, current node count and deployment mode.
      */
     function resetApp() {
-      // Do not change appState.regionMode or node count, just regenerate nodes with current settings
       generateNodes(appState.totalNodes);
+      // Arrows are handled in generateNodes
+    }
+
+    /**
+     * Draws animated arrows from the primary node label to each secondary's db icon (single-region only).
+     */
+    function drawPrimaryArrows() {
+      // Remove any existing arrow SVG
+      const oldArrow = vizContainer.querySelector('.arrow-svg');
+      if (oldArrow) oldArrow.remove();
+
+      if (appState.regionMode !== 'single' || appState.primaryIndex === -1) return;
+
+      const nodes = Array.from(vizContainer.querySelectorAll('.node'));
+      if (nodes.length < 2) return;
+
+      // Get bounding rect of container for offset
+      const containerRect = vizContainer.getBoundingClientRect();
+
+      // Get anchor position for primary label
+      const primaryNode = nodes[appState.primaryIndex];
+      const primaryLabel = primaryNode.querySelector('.label');
+      const labelRect = primaryLabel.getBoundingClientRect();
+      const from = {
+        x: labelRect.left + labelRect.width / 2 - containerRect.left,
+        y: labelRect.top + labelRect.height / 2 - containerRect.top
+      };
+
+      // SVG element
+      const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+      svg.classList.add('arrow-svg');
+      svg.setAttribute('width', '100%');
+      svg.setAttribute('height', '100%');
+      svg.style.position = 'absolute';
+      svg.style.left = 0;
+      svg.style.top = 0;
+      svg.style.pointerEvents = 'none';
+
+      // Arrowhead marker definition
+      const defs = document.createElementNS('http://www.w3.org/2000/svg', 'defs');
+      defs.innerHTML = `
+        <marker id="arrowhead" markerWidth="12" markerHeight="12" refX="10" refY="6" orient="auto" markerUnits="strokeWidth">
+          <polygon points="2,2 10,6 2,10" fill="var(--primary-green, #13aa52)" />
+        </marker>
+      `;
+      svg.appendChild(defs);
+
+      // Draw arrow from primary label to each available secondary's db icon
+      nodes.forEach((node, idx) => {
+        if (idx === appState.primaryIndex) return;
+        if (appState.failedIndices.has(idx)) return;
+
+        const dbIcon = node.querySelector('.db-icon');
+        const dbRect = dbIcon.getBoundingClientRect();
+        const to = {
+          x: dbRect.left + dbRect.width / 2 - containerRect.left,
+          y: dbRect.top + dbRect.height / 2 - containerRect.top
+        };
+
+        // Calculate direction vector and shorten arrow so it doesn't overlap label/db icon
+        const dx = to.x - from.x;
+        const dy = to.y - from.y;
+        const dist = Math.sqrt(dx*dx + dy*dy);
+        const shrinkStart = 18; // px from label center
+        const shrinkEnd = 28;   // px from db icon center
+        const startX = from.x + dx * (shrinkStart / dist);
+        const startY = from.y + dy * (shrinkStart / dist);
+        const endX = to.x - dx * (shrinkEnd / dist);
+        const endY = to.y - dy * (shrinkEnd / dist);
+
+        const path = document.createElementNS('http://www.w3.org/2000/svg', 'line');
+        path.setAttribute('x1', startX);
+        path.setAttribute('y1', startY);
+        path.setAttribute('x2', endX);
+        path.setAttribute('y2', endY);
+        path.setAttribute('class', 'arrow-path');
+        path.setAttribute('marker-end', 'url(#arrowhead)');
+        svg.appendChild(path);
+      });
+
+      vizContainer.appendChild(svg);
     }
 
     // --- Event Listeners & Initialization ---
