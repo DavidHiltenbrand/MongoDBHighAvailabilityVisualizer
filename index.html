@@ -24,8 +24,21 @@
     <button id="multi-region-btn" class="region-mode-btn">Multi-Region</button>
     <span id="region-count-controls" style="margin-left:2em;">
       <span># of Regions:</span>
-      <button id="region-count-2" class="region-count-btn active">2</button>
-      <button id="region-count-3" class="region-count-btn">3</button>
+      <button
+        id="region-count-2"
+        class="region-count-btn active"
+        title="A 2-region cluster risks downtime during a region failure if the remaining region has a minority of nodes remaining."
+      >2</button>
+      <span style="position: relative; display: inline-block;">
+        <button
+          id="region-count-3"
+          class="region-count-btn"
+          title="A 3-region cluster ensures high availability with fault tolerance across multiple regions."
+        >3</button>
+        <svg id="region-3-gold-star" viewBox="0 0 20 20" width="18" height="18" style="position:absolute; top:-8px; right:-8px; display:none; pointer-events:none; z-index:2;" xmlns="http://www.w3.org/2000/svg" aria-label="Recommended">
+          <polygon points="10,1 12.4,7.1 19,7.3 13.8,11.6 15.6,18 10,14.3 4.4,18 6.2,11.6 1,7.3 7.6,7.1" fill="#FFD700" stroke="#E6B800" stroke-width="1"/>
+        </svg>
+      </span>
     </span>
     <button id="reset-btn" style="margin-left:2em;">Reset</button>
   </div>
@@ -69,6 +82,7 @@
     const regionToggleBtn2 = regionToggles.querySelector('.region-toggle[data-region="2"]');
     const regionToggleBtn3 = regionToggles.querySelector('.region-toggle[data-region="3"]');
     const regionCountControls = document.getElementById('region-count-controls');
+    const region3GoldStar = document.getElementById('region-3-gold-star');
 
     const COLORS = {
       PRIMARY: 'var(--primary-green)',
@@ -606,8 +620,10 @@
       // Show/hide region count controls based on region mode
       if (appState.regionMode === 'multi') {
         regionCountControls.style.display = '';
+        region3GoldStar.style.display = '';
       } else {
         regionCountControls.style.display = 'none';
+        region3GoldStar.style.display = 'none';
       }
       // Highlight region count button
       regionCountBtns.forEach(btn => {
