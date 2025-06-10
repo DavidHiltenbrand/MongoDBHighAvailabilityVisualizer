@@ -22,6 +22,9 @@
     <span style="margin-left:2em;">Deployment:</span>
     <button id="single-region-btn" class="region-mode-btn active">Single Region</button>
     <button id="multi-region-btn" class="region-mode-btn">Multi-Region</button>
+    <span style="margin-left:2em;">Regions:</span>
+    <button id="region-count-2" class="region-count-btn active">2 Regions</button>
+    <button id="region-count-3" class="region-count-btn">3 Regions</button>
     <button id="reset-btn" style="margin-left:2em;">Reset</button>
   </div>
 
@@ -29,7 +32,7 @@
     <span>Choose Region Outage:</span>
     <button class="region-toggle" data-region="1">Region 1: Available</button>
     <button class="region-toggle" data-region="2">Region 2: Available</button>
-    <button class="region-toggle" data-region="3">Region 3: Available</button>
+    <button class="region-toggle" data-region="3" style="display:none;">Region 3: Available</button>
   </div>
 
   <div id="visualization-container"></div>
@@ -59,6 +62,10 @@
     const regionToggles = document.getElementById('region-toggles');
     const regionToggleBtns = regionToggles.querySelectorAll('.region-toggle');
     const resetBtn = document.getElementById('reset-btn');
+    const regionCountBtns = document.querySelectorAll('.region-count-btn');
+    const regionToggleBtn1 = regionToggles.querySelector('.region-toggle[data-region="1"]');
+    const regionToggleBtn2 = regionToggles.querySelector('.region-toggle[data-region="2"]');
+    const regionToggleBtn3 = regionToggles.querySelector('.region-toggle[data-region="3"]');
 
     const COLORS = {
       PRIMARY: 'var(--primary-green)',
@@ -81,12 +88,13 @@
       primaryIndex: 0,
       failedIndices: new Set(),
       regionMode: 'single', // 'single' or 'multi'
-      nodeRegions: [], // Array of region numbers for each node
-      regionStatus: {1: true, 2: true, 3: true}, // true = available, false = outage
+      regionCount: 2, // 2 or 3
+      nodeRegions: [],
+      regionStatus: {1: true, 2: true, 3: true},
     };
 
     /**
-     * Assigns nodes to regions based on node count and multi-region rules.
+     * Assigns nodes to regions based on node count and region count.
      * @param {number} numNodes
      * @returns {number[]} Array of region numbers for each node (1-based)
      */
@@ -95,9 +103,16 @@
         return Array(numNodes).fill(1);
       }
       // Multi-region distribution
-      if (numNodes === 3) return [1,2,3];
-      if (numNodes === 5) return [1,1,2,2,3];
-      if (numNodes === 7) return [1,1,1,2,2,3,3]; // 3/2/2 distribution
+      if (appState.regionCount === 2) {
+        if (numNodes === 3) return [1,1,2];
+        if (numNodes === 5) return [1,1,1,2,2];
+        if (numNodes === 7) return [1,1,1,1,2,2,2];
+      } else {
+        // regionCount === 3
+        if (numNodes === 3) return [1,2,3];
+        if (numNodes === 5) return [1,1,2,2,3];
+        if (numNodes === 7) return [1,1,1,2,2,3,3];
+      }
       // fallback: single region
       return Array(numNodes).fill(1);
     }
@@ -122,7 +137,15 @@
         regionToggles.style.display = '';
         // Reset region toggles to available
         appState.regionStatus = {1: true, 2: true, 3: true};
-        regionToggleBtns.forEach(btn => {
+        regionToggleBtn1.style.display = '';
+        regionToggleBtn2.style.display = '';
+        if (appState.regionCount === 3) {
+          regionToggleBtn3.style.display = '';
+        } else {
+          regionToggleBtn3.style.display = 'none';
+        }
+        [regionToggleBtn1, regionToggleBtn2, regionToggleBtn3].forEach((btn, idx) => {
+          if (appState.regionCount === 2 && idx === 2) return;
           btn.textContent = `Region ${btn.dataset.region}: Available`;
           btn.classList.remove('outage');
         });
@@ -248,30 +271,47 @@
           return row;
         }
 
-        // --- Render 5 rows: region, divider, region, divider, region ---
-        // Row 1: Region 1
-        const row1 = createRegionRow(1, regionNodes[1]);
-        vizContainer.appendChild(row1);
+        // --- Render region rows and dividers based on regionCount ---
+        if (appState.regionCount === 2) {
+          // Row 1: Region 1
+          const row1 = createRegionRow(1, regionNodes[1]);
+          vizContainer.appendChild(row1);
 
-        // Row 2: Dotted divider
-        const divider1 = document.createElement('div');
-        divider1.className = 'dotted-divider-row';
-        divider1.innerHTML = '<div class="dotted-divider"></div>';
-        vizContainer.appendChild(divider1);
+          // Divider
+          const divider1 = document.createElement('div');
+          divider1.className = 'dotted-divider-row';
+          divider1.innerHTML = '<div class="dotted-divider"></div>';
+          vizContainer.appendChild(divider1);
 
-        // Row 3: Region 2
-        const row2 = createRegionRow(2, regionNodes[2]);
-        vizContainer.appendChild(row2);
+          // Row 2: Region 2
+          const row2 = createRegionRow(2, regionNodes[2]);
+          vizContainer.appendChild(row2);
+        } else {
+          // regionCount === 3
+          // Row 1: Region 1
+          const row1 = createRegionRow(1, regionNodes[1]);
+          vizContainer.appendChild(row1);
 
-        // Row 4: Dotted divider
-        const divider2 = document.createElement('div');
-        divider2.className = 'dotted-divider-row';
-        divider2.innerHTML = '<div class="dotted-divider"></div>';
-        vizContainer.appendChild(divider2);
+          // Divider
+          const divider1 = document.createElement('div');
+          divider1.className = 'dotted-divider-row';
+          divider1.innerHTML = '<div class="dotted-divider"></div>';
+          vizContainer.appendChild(divider1);
 
-        // Row 5: Region 3
-        const row3 = createRegionRow(3, regionNodes[3]);
-        vizContainer.appendChild(row3);
+          // Row 2: Region 2
+          const row2 = createRegionRow(2, regionNodes[2]);
+          vizContainer.appendChild(row2);
+
+          // Divider
+          const divider2 = document.createElement('div');
+          divider2.className = 'dotted-divider-row';
+          divider2.innerHTML = '<div class="dotted-divider"></div>';
+          vizContainer.appendChild(divider2);
+
+          // Row 3: Region 3
+          const row3 = createRegionRow(3, regionNodes[3]);
+          vizContainer.appendChild(row3);
+        }
       }
 
       // 4. Update UI elements
@@ -352,6 +392,7 @@
     function handleRegionToggle(event) {
       const btn = event.currentTarget;
       const region = parseInt(btn.dataset.region, 10);
+      if (appState.regionCount === 2 && region === 3) return;
       const isAvailable = appState.regionStatus[region];
 
       // Toggle region status
@@ -559,6 +600,13 @@
           btn.classList.add('active');
         }
       });
+      // Highlight region count button
+      regionCountBtns.forEach(btn => {
+        btn.classList.remove('active');
+        if (parseInt(btn.id.replace('region-count-', ''), 10) === appState.regionCount) {
+          btn.classList.add('active');
+        }
+      });
     }
 
     /**
@@ -590,6 +638,21 @@
 
     // Initial load with 3 nodes
     window.addEventListener('load', () => generateNodes(3));
+
+    // --- Add region count button logic ---
+    regionCountBtns.forEach(btn => {
+      btn.addEventListener('click', (e) => {
+        const count = parseInt(btn.id.replace('region-count-', ''), 10);
+        if (appState.regionCount !== count) {
+          appState.regionCount = count;
+          // Update button styles
+          regionCountBtns.forEach(b => b.classList.remove('active'));
+          btn.classList.add('active');
+          // Regenerate nodes to update region assignment and UI
+          generateNodes(appState.totalNodes);
+        }
+      });
+    });
 
   </script>
 </body>
