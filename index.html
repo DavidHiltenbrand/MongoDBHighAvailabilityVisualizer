@@ -22,9 +22,11 @@
     <span style="margin-left:2em;">Deployment:</span>
     <button id="single-region-btn" class="region-mode-btn active">Single Region</button>
     <button id="multi-region-btn" class="region-mode-btn">Multi-Region</button>
-    <span style="margin-left:2em;"># of Regions:</span>
-    <button id="region-count-2" class="region-count-btn active">2</button>
-    <button id="region-count-3" class="region-count-btn">3</button>
+    <span id="region-count-controls" style="margin-left:2em;">
+      <span># of Regions:</span>
+      <button id="region-count-2" class="region-count-btn active">2</button>
+      <button id="region-count-3" class="region-count-btn">3</button>
+    </span>
     <button id="reset-btn" style="margin-left:2em;">Reset</button>
   </div>
 
@@ -66,6 +68,7 @@
     const regionToggleBtn1 = regionToggles.querySelector('.region-toggle[data-region="1"]');
     const regionToggleBtn2 = regionToggles.querySelector('.region-toggle[data-region="2"]');
     const regionToggleBtn3 = regionToggles.querySelector('.region-toggle[data-region="3"]');
+    const regionCountControls = document.getElementById('region-count-controls');
 
     const COLORS = {
       PRIMARY: 'var(--primary-green)',
@@ -600,6 +603,12 @@
           btn.classList.add('active');
         }
       });
+      // Show/hide region count controls based on region mode
+      if (appState.regionMode === 'multi') {
+        regionCountControls.style.display = '';
+      } else {
+        regionCountControls.style.display = 'none';
+      }
       // Highlight region count button
       regionCountBtns.forEach(btn => {
         btn.classList.remove('active');
