@@ -19,35 +19,35 @@
     <button id="btn-3" class="node-btn active">3 nodes</button>
     <button id="btn-5" class="node-btn">5 nodes</button>
     <button id="btn-7" class="node-btn">7 nodes</button>
-    <span style="margin-left:2em;">Deployment:</span>
+    <span class="controls-divider">Deployment:</span>
     <button id="single-region-btn" class="region-mode-btn active">Single Region</button>
     <button id="multi-region-btn" class="region-mode-btn">Multi-Region</button>
-    <span id="region-count-controls" style="margin-left:2em;">
+    <span id="region-count-controls" class="controls-divider hidden">
       <span># of Regions:</span>
       <button
         id="region-count-2"
         class="region-count-btn active"
         title="A 2-region cluster risks downtime during a region failure if the remaining region has a minority of nodes remaining."
       >2</button>
-      <span style="position: relative; display: inline-block;">
+      <span class="region-count-3-wrap">
         <button
           id="region-count-3"
           class="region-count-btn"
           title="A 3-region cluster ensures high availability with fault tolerance across multiple regions."
         >3</button>
-        <svg id="region-3-gold-star" viewBox="0 0 20 20" width="18" height="18" style="position:absolute; top:-8px; right:-8px; display:none; pointer-events:none; z-index:2;" xmlns="http://www.w3.org/2000/svg" aria-label="Recommended">
+        <svg id="region-3-gold-star" class="region-3-gold-star hidden" viewBox="0 0 20 20" xmlns="http://www.w3.org/2000/svg" aria-label="Recommended">
           <polygon points="10,1 12.4,7.1 19,7.3 13.8,11.6 15.6,18 10,14.3 4.4,18 6.2,11.6 1,7.3 7.6,7.1" fill="#FFD700" stroke="#E6B800" stroke-width="1"/>
         </svg>
       </span>
     </span>
-    <button id="reset-btn" style="margin-left:2em;">Reset</button>
+    <button id="reset-btn" class="controls-divider">Reset</button>
   </div>
 
-  <div id="region-toggles" style="display:none; margin:1em 0;">
+  <div id="region-toggles" class="hidden">
     <span>Choose Region Outage:</span>
     <button class="region-toggle" data-region="1">Region 1: Available</button>
     <button class="region-toggle" data-region="2">Region 2: Available</button>
-    <button class="region-toggle" data-region="3" style="display:none;">Region 3: Available</button>
+    <button class="region-toggle hidden" data-region="3">Region 3: Available</button>
   </div>
 
   <div id="visualization-container"></div>
@@ -106,8 +106,8 @@
       failedIndices: new Set(),
       regionMode: 'single', // 'single' or 'multi'
       regionCount: 2, // 2 or 3
-      nodeRegions: [],
-      regionStatus: {1: true, 2: true, 3: true},
+      nodeRegions: [], // Array of region numbers for each node
+      regionStatus: {1: true, 2: true, 3: true}, // true = available, false = outage
     };
 
     /**
@@ -119,19 +119,42 @@
       if (appState.regionMode === 'single') {
         return Array(numNodes).fill(1);
       }
-      // Multi-region distribution
       if (appState.regionCount === 2) {
-        if (numNodes === 3) return [1,1,2];
-        if (numNodes === 5) return [1,1,1,2,2];
-        if (numNodes === 7) return [1,1,1,1,2,2,2];
+        if (numNodes === 3) return [1, 1, 2];
+        if (numNodes === 5) return [1, 1, 1, 2, 2];
+        if (numNodes === 7) return [1, 1, 1, 1, 2, 2, 2];
       } else {
-        // regionCount === 3
-        if (numNodes === 3) return [1,2,3];
-        if (numNodes === 5) return [1,1,2,2,3];
-        if (numNodes === 7) return [1,1,1,2,2,3,3];
+        if (numNodes === 3) return [1, 2, 3];
+        if (numNodes === 5) return [1, 1, 2, 2, 3];
+        if (numNodes === 7) return [1, 1, 1, 2, 2, 3, 3];
       }
       // fallback: single region
       return Array(numNodes).fill(1);
+    }
+
+    /**
+     * Positions nodes in a circle based on the current container dimensions.
+     */
+    function layoutCircleNodes() {
+      if (appState.regionMode !== 'single') return;
+
+      const containerSize = vizContainer.offsetWidth;
+      if (!containerSize) return;
+
+      const radius = containerSize * 0.375;
+      const centerX = containerSize / 2;
+      const centerY = containerSize / 2;
+      const angleOffset = -Math.PI / 2;
+      const nodes = vizContainer.querySelectorAll('.node');
+      const numNodes = nodes.length;
+
+      nodes.forEach((nodeEl, i) => {
+        const angle = (i / numNodes) * 2 * Math.PI + angleOffset;
+        const x = centerX + radius * Math.cos(angle);
+        const y = centerY + radius * Math.sin(angle);
+        nodeEl.style.left = `${x}px`;
+        nodeEl.style.top = `${y}px`;
+      });
     }
 
     /**
@@ -149,18 +172,11 @@
       // Reset region status if switching to single region
       if (appState.regionMode === 'single') {
         appState.regionStatus = {1: true, 2: true, 3: true};
-        regionToggles.style.display = 'none';
+        regionToggles.classList.add('hidden');
       } else {
-        regionToggles.style.display = '';
-        // Reset region toggles to available
+        regionToggles.classList.remove('hidden');
         appState.regionStatus = {1: true, 2: true, 3: true};
-        regionToggleBtn1.style.display = '';
-        regionToggleBtn2.style.display = '';
-        if (appState.regionCount === 3) {
-          regionToggleBtn3.style.display = '';
-        } else {
-          regionToggleBtn3.style.display = 'none';
-        }
+        regionToggleBtn3.classList.toggle('hidden', appState.regionCount === 2);
         [regionToggleBtn1, regionToggleBtn2, regionToggleBtn3].forEach((btn, idx) => {
           if (appState.regionCount === 2 && idx === 2) return;
           btn.textContent = `Region ${btn.dataset.region}: Available`;
@@ -170,33 +186,14 @@
 
       if (appState.regionMode === 'single') {
         // --- Circular layout for single region ---
-        // Reset container styles to default for single region
-        vizContainer.style.display = '';
-        vizContainer.style.flexDirection = '';
-        vizContainer.style.alignItems = '';
-        vizContainer.style.justifyContent = '';
-        vizContainer.style.width = '';
-        vizContainer.style.height = '';
-        vizContainer.style.position = '';
-        // 2. Define circle layout parameters
-        const radius = 150;
-        const containerSize = 400;
-        const centerX = containerSize / 2;
-        const centerY = containerSize / 2;
-        // Start angle at -90 degrees (12 o'clock position)
-        const angleOffset = -Math.PI / 2;
+        vizContainer.classList.remove('multi-region');
+        vizContainer.classList.add('single-region');
 
-        // 3. Create and place each node
         for (let i = 0; i < numNodes; i++) {
           const isPrimary = (i === appState.primaryIndex);
-          const angle = (i / numNodes) * 2 * Math.PI + angleOffset;
-          const x = centerX + radius * Math.cos(angle);
-          const y = centerY + radius * Math.sin(angle);
 
           const nodeEl = document.createElement('div');
           nodeEl.className = 'node';
-          nodeEl.style.left = `${x}px`;
-          nodeEl.style.top = `${y}px`;
           nodeEl.dataset.id = i;
           nodeEl.dataset.region = appState.nodeRegions[i];
 
@@ -217,51 +214,35 @@
 
           vizContainer.appendChild(nodeEl);
         }
+
+        layoutCircleNodes();
       } else {
         // --- Square grid layout for multi-region ---
+        vizContainer.classList.remove('single-region');
+        vizContainer.classList.add('multi-region');
         // Group nodes by region
         const regionNodes = {1: [], 2: [], 3: []};
         for (let i = 0; i < numNodes; i++) {
           regionNodes[appState.nodeRegions[i]].push(i);
         }
 
-        // Style container for grid
-        vizContainer.style.display = 'flex';
-        vizContainer.style.flexDirection = 'column';
-        vizContainer.style.alignItems = 'center';
-        vizContainer.style.justifyContent = 'center';
-        vizContainer.style.width = '100%';
-        vizContainer.style.height = 'auto';
-        vizContainer.style.position = 'relative';
-
         // Helper: create a region row
         function createRegionRow(region, nodeIndices) {
           const row = document.createElement('div');
           row.className = 'region-row';
-          row.style.display = 'flex';
-          row.style.justifyContent = 'center';
-          row.style.alignItems = 'center';
-          row.style.height = '120px'; /* Fixed height to match node height */
-          row.style.margin = '0';     /* Remove vertical margin */
-          row.style.width = '100%';
 
-          // Add region label (left side)
           const regionLabel = document.createElement('span');
           regionLabel.textContent = `Region ${region}`;
           regionLabel.className = 'region-row-label';
-          regionLabel.style.fontWeight = 'bold';
-          regionLabel.style.marginRight = '1.5em';
-          regionLabel.style.minWidth = '80px';
-          regionLabel.style.textAlign = 'right';
           row.appendChild(regionLabel);
 
-          // Add nodes for this region
+          const nodesWrapper = document.createElement('div');
+          nodesWrapper.className = 'region-row-nodes';
+
           nodeIndices.forEach(i => {
             const isPrimary = (i === appState.primaryIndex);
             const nodeEl = document.createElement('div');
-            nodeEl.className = 'node';
-            nodeEl.style.position = 'relative';
-            nodeEl.style.margin = '0 24px';
+            nodeEl.className = 'node node--in-row';
             nodeEl.dataset.id = i;
             nodeEl.dataset.region = region;
 
@@ -276,13 +257,13 @@
             `;
 
             nodeEl.addEventListener('click', handleNodeClick);
-            row.appendChild(nodeEl);
+            nodesWrapper.appendChild(nodeEl);
           });
 
-          // Spacer to balance label on right
+          row.appendChild(nodesWrapper);
+
           const rightSpacer = document.createElement('span');
-          rightSpacer.style.minWidth = '80px';
-          rightSpacer.style.marginLeft = '1.5em';
+          rightSpacer.className = 'region-row-spacer';
           row.appendChild(rightSpacer);
 
           return row;
@@ -290,42 +271,33 @@
 
         // --- Render region rows and dividers based on regionCount ---
         if (appState.regionCount === 2) {
-          // Row 1: Region 1
           const row1 = createRegionRow(1, regionNodes[1]);
           vizContainer.appendChild(row1);
 
-          // Divider
           const divider1 = document.createElement('div');
           divider1.className = 'dotted-divider-row';
           divider1.innerHTML = '<div class="dotted-divider"></div>';
           vizContainer.appendChild(divider1);
 
-          // Row 2: Region 2
           const row2 = createRegionRow(2, regionNodes[2]);
           vizContainer.appendChild(row2);
         } else {
-          // regionCount === 3
-          // Row 1: Region 1
           const row1 = createRegionRow(1, regionNodes[1]);
           vizContainer.appendChild(row1);
 
-          // Divider
           const divider1 = document.createElement('div');
           divider1.className = 'dotted-divider-row';
           divider1.innerHTML = '<div class="dotted-divider"></div>';
           vizContainer.appendChild(divider1);
 
-          // Row 2: Region 2
           const row2 = createRegionRow(2, regionNodes[2]);
           vizContainer.appendChild(row2);
 
-          // Divider
           const divider2 = document.createElement('div');
           divider2.className = 'dotted-divider-row';
           divider2.innerHTML = '<div class="dotted-divider"></div>';
           vizContainer.appendChild(divider2);
 
-          // Row 3: Region 3
           const row3 = createRegionRow(3, regionNodes[3]);
           vizContainer.appendChild(row3);
         }
@@ -493,7 +465,7 @@
 
       if (appState.regionMode === 'multi') {
         // Try regions in priority order: 1, then 2, then 3
-        for (let region = 1; region <= 3; region++) {
+        for (let region = 1; region <= appState.regionCount; region++) {
           for (let i = 0; i < appState.totalNodes; i++) {
             if (
               appState.nodeRegions[i] === region &&
@@ -617,15 +589,13 @@
           btn.classList.add('active');
         }
       });
-      // Show/hide region count controls based on region mode
       if (appState.regionMode === 'multi') {
-        regionCountControls.style.display = '';
-        region3GoldStar.style.display = '';
+        regionCountControls.classList.remove('hidden');
+        region3GoldStar.classList.remove('hidden');
       } else {
-        regionCountControls.style.display = 'none';
-        region3GoldStar.style.display = 'none';
+        regionCountControls.classList.add('hidden');
+        region3GoldStar.classList.add('hidden');
       }
-      // Highlight region count button
       regionCountBtns.forEach(btn => {
         btn.classList.remove('active');
         if (parseInt(btn.id.replace('region-count-', ''), 10) === appState.regionCount) {
@@ -660,6 +630,24 @@
     });
 
     resetBtn.addEventListener('click', resetApp);
+
+    regionCountBtns.forEach(btn => {
+      btn.addEventListener('click', () => {
+        const count = parseInt(btn.id.replace('region-count-', ''), 10);
+        if (appState.regionCount !== count) {
+          appState.regionCount = count;
+          generateNodes(appState.totalNodes);
+        }
+      });
+    });
+
+    // Re-layout circle on container resize
+    const resizeObserver = new ResizeObserver(() => {
+      if (appState.regionMode === 'single') {
+        layoutCircleNodes();
+      }
+    });
+    resizeObserver.observe(vizContainer);
 
     // Initial load with 3 nodes
     window.addEventListener('load', () => generateNodes(3));

@@ -1,5 +1,5 @@
 /* =========================
-   Color Variables
+   Color & Scale Variables
    ========================= */
 :root {
     --primary-green: #00684A;
@@ -7,17 +7,37 @@
     --dark-text: #001E2B;
     --page-background: #FFFFFF;
     --failure-red: #FF0000;
+
+    /* Proportional scale — reference design is 400px visualization */
+    --viz-size: min(90vw, 400px);
+    --node-width: calc(var(--viz-size) * 0.25);
+    --node-height: calc(var(--viz-size) * 0.3);
+    --icon-container-size: calc(var(--viz-size) * 0.2);
+    --db-icon-size: calc(var(--viz-size) * 0.1875);
+    --icon-margin-top: calc(var(--viz-size) * 0.175);
+    --node-gap: calc(var(--viz-size) * 0.06);
+    --region-label-width: calc(var(--viz-size) * 0.2);
+    --region-row-height: var(--node-height);
+    --label-font-size: clamp(11px, calc(var(--viz-size) * 0.035), 14px);
+    --status-font-size: clamp(18px, 4vw, 24px);
+    --control-font-size: clamp(13px, 2.5vw, 16px);
+    --control-padding-y: clamp(8px, 1.5vw, 10px);
+    --control-padding-x: clamp(12px, 2.5vw, 18px);
 }
 
 /* =========================
    Base Layout
    ========================= */
+*, *::before, *::after {
+    box-sizing: border-box;
+}
+
 body {
     font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
     background-color: var(--page-background);
     color: var(--dark-text);
     margin: 0;
-    padding: 20px;
+    padding: clamp(12px, 3vw, 20px);
     display: flex;
     flex-direction: column;
     align-items: center;
@@ -27,53 +47,139 @@ body {
 h1 {
     color: var(--dark-text);
     font-weight: 600;
+    font-size: clamp(1.25rem, 5vw, 2rem);
+    text-align: center;
+    margin: 0 0 0.5em;
 }
 
 /* =========================
    Controls
    ========================= */
 .controls {
-    margin-bottom: 30px;
+    margin-bottom: clamp(16px, 4vw, 30px);
     display: flex;
+    flex-wrap: wrap;
     gap: 10px;
     align-items: center;
+    justify-content: center;
+    max-width: 100%;
 }
 
-.controls button {
-    padding: 10px 18px;
+.controls-divider {
+    margin-left: 2em;
+}
+
+.controls button,
+.region-toggle,
+.region-count-btn {
+    padding: var(--control-padding-y) var(--control-padding-x);
     border: 1px solid var(--primary-green);
     background-color: var(--page-background);
     color: var(--primary-green);
-    font-size: 16px;
+    font-size: var(--control-font-size);
     border-radius: 5px;
     cursor: pointer;
     transition: background-color 0.2s, color 0.2s;
 }
 
 .controls button:hover,
-.controls button.active {
+.controls button.active,
+.region-toggle:hover,
+.region-toggle.outage,
+.region-count-btn:hover,
+.region-count-btn.active {
     background-color: var(--primary-green);
     color: var(--page-background);
+}
+
+.region-toggle.outage {
+    border-color: var(--failure-red);
+    background-color: var(--failure-red);
+    color: var(--page-background);
+}
+
+/* =========================
+   Region Toggles
+   ========================= */
+#region-toggles {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px;
+    justify-content: center;
+    align-items: center;
+    margin: 1em 0;
+    max-width: 100%;
+}
+
+#region-toggles.hidden {
+    display: none;
+}
+
+#region-count-controls {
+    display: inline-flex;
+    flex-wrap: wrap;
+    gap: 10px;
+    align-items: center;
+}
+
+#region-count-controls.hidden {
+    display: none;
+}
+
+.region-count-3-wrap {
+    position: relative;
+    display: inline-block;
+}
+
+.region-3-gold-star {
+    position: absolute;
+    top: -8px;
+    right: -8px;
+    width: 18px;
+    height: 18px;
+    pointer-events: none;
+    z-index: 2;
+}
+
+.region-toggle.hidden,
+.region-3-gold-star.hidden {
+    display: none;
 }
 
 /* =========================
    Visualization Container
    ========================= */
 #visualization-container {
-    width: 400px;
-    height: 400px;
     position: relative;
-    margin: 20px auto;
+    margin: clamp(12px, 3vw, 20px) auto;
+    width: 100%;
+    max-width: min(95vw, 720px);
+}
+
+#visualization-container.single-region {
+    width: var(--viz-size);
+    height: var(--viz-size);
+    max-width: var(--viz-size);
+    aspect-ratio: 1;
+}
+
+#visualization-container.multi-region {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    height: auto;
 }
 
 /* =========================
    Status Text
    ========================= */
 #status-text {
-    font-size: 24px;
+    font-size: var(--status-font-size);
     font-weight: bold;
     color: var(--primary-green);
-    margin-top: 20px;
+    margin-top: clamp(12px, 3vw, 20px);
+    text-align: center;
     transition: color 0.3s ease;
 }
 
@@ -81,13 +187,14 @@ h1 {
    Footer
    ========================= */
 footer {
-    position: absolute;
-    bottom: 20px;
+    margin-top: auto;
+    padding-top: clamp(24px, 5vw, 40px);
     text-align: center;
     width: 100%;
     color: #aaa;
-    font-size: 14px;
+    font-size: clamp(12px, 2.5vw, 14px);
     display: flex;
+    flex-wrap: wrap;
     justify-content: center;
     align-items: center;
     gap: 8px;
@@ -115,8 +222,8 @@ footer svg {
    ========================= */
 .node {
     position: absolute;
-    width: 100px;
-    height: 120px;
+    width: var(--node-width);
+    height: var(--node-height);
     display: flex;
     flex-direction: column;
     align-items: center;
@@ -124,14 +231,24 @@ footer svg {
     transform: translate(-50%, -50%);
 }
 
+.node--in-row {
+    position: relative;
+    transform: none;
+    flex-shrink: 0;
+    margin: 0;
+}
+
+.node:not(.node--in-row) .icon-container {
+    margin-top: var(--icon-margin-top);
+}
+
 .node .icon-container {
     position: relative;
-    width: 80px;
-    height: 80px;
+    width: var(--icon-container-size);
+    height: var(--icon-container-size);
     display: flex;
     align-items: center;
     justify-content: center;
-    margin-top: 70px;
 }
 
 .node .icon-container svg {
@@ -159,7 +276,7 @@ footer svg {
 
 .node .label {
     margin-top: 5px;
-    font-size: 14px;
+    font-size: var(--label-font-size);
     font-weight: bold;
     text-align: center;
 }
@@ -173,10 +290,47 @@ footer svg {
 }
 
 .db-icon {
-    width: 75px;
-    height: 75px;
+    width: var(--db-icon-size);
+    height: var(--db-icon-size);
     display: block;
     margin: 0 auto;
+}
+
+/* =========================
+   Multi-Region Layout
+   ========================= */
+.region-row {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    min-height: var(--region-row-height);
+    margin: 0;
+    width: 100%;
+}
+
+.region-row-label {
+    font-weight: bold;
+    margin-right: 1.5em;
+    min-width: var(--region-label-width);
+    text-align: right;
+    flex-shrink: 0;
+    font-size: var(--label-font-size);
+}
+
+.region-row-spacer {
+    min-width: var(--region-label-width);
+    margin-left: 1.5em;
+    flex-shrink: 0;
+}
+
+.region-row-nodes {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: var(--node-gap);
+    flex: 1;
+    min-width: 0;
 }
 
 /* =========================
@@ -187,7 +341,7 @@ footer svg {
     display: flex;
     justify-content: center;
     align-items: center;
-    height: 32px;
+    height: calc(var(--viz-size) * 0.08);
 }
 
 .dotted-divider {
@@ -196,12 +350,39 @@ footer svg {
     height: 0;
 }
 
-.region-row {
-    display: flex;
-    justify-content: center;
-    align-items: center;
-    height: 120px;
-    margin: 0;
-    width: 100%;
-    overflow: hidden;
+/* =========================
+   Responsive Breakpoints
+   ========================= */
+@media (max-width: 600px) {
+    .controls-divider {
+        margin-left: 0;
+        flex-basis: 100%;
+        text-align: center;
+    }
+
+    :root {
+        --viz-size: min(92vw, 360px);
+    }
+}
+
+@media (max-width: 480px) {
+    :root {
+        --viz-size: min(94vw, 320px);
+    }
+
+    .region-row {
+        flex-direction: column;
+        padding: 0.5em 0;
+    }
+
+    .region-row-label {
+        margin-right: 0;
+        margin-bottom: 0.5em;
+        text-align: center;
+        min-width: auto;
+    }
+
+    .region-row-spacer {
+        display: none;
+    }
 }
