@@ -652,6 +652,21 @@
     // Initial load with 3 nodes
     window.addEventListener('load', () => generateNodes(3));
 
+    // --- Add region count button logic ---
+    regionCountBtns.forEach(btn => {
+      btn.addEventListener('click', (e) => {
+        const count = parseInt(btn.id.replace('region-count-', ''), 10);
+        if (appState.regionCount !== count) {
+          appState.regionCount = count;
+          // Update button styles
+          regionCountBtns.forEach(b => b.classList.remove('active'));
+          btn.classList.add('active');
+          // Regenerate nodes to update region assignment and UI
+          generateNodes(appState.totalNodes);
+        }
+      });
+    });
+
   </script>
 </body>
 </html>
