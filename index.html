@@ -41,6 +41,11 @@
       </span>
     </span>
     <button id="reset-btn" class="controls-divider">Reset</button>
+    <button
+      id="replication-flow-btn"
+      class="controls-divider replication-flow-btn"
+      title="Show animated arrows from the primary to each healthy secondary"
+    >Replication Flow: Off</button>
   </div>
 
   <div id="region-toggles" class="hidden">
@@ -50,7 +55,9 @@
     <button class="region-toggle hidden" data-region="3">Region 3: Available</button>
   </div>
 
-  <div id="visualization-container"></div>
+  <div id="visualization-wrapper" class="visualization-wrapper">
+    <div id="visualization-container"></div>
+  </div>
 
   <p id="status-text">Status: Primary Accepting Writes</p>
 
@@ -70,6 +77,7 @@
 
   <script>
     // --- DOM Elements & Constants ---
+    const vizWrapper = document.getElementById('visualization-wrapper');
     const vizContainer = document.getElementById('visualization-container');
     const statusText = document.getElementById('status-text');
     const nodeButtons = document.querySelectorAll('.node-btn');
@@ -83,6 +91,7 @@
     const regionToggleBtn3 = regionToggles.querySelector('.region-toggle[data-region="3"]');
     const regionCountControls = document.getElementById('region-count-controls');
     const region3GoldStar = document.getElementById('region-3-gold-star');
+    const replicationFlowBtn = document.getElementById('replication-flow-btn');
 
     const COLORS = {
       PRIMARY: 'var(--primary-green)',
@@ -108,7 +117,15 @@
       regionCount: 2, // 2 or 3
       nodeRegions: [], // Array of region numbers for each node
       regionStatus: {1: true, 2: true, 3: true}, // true = available, false = outage
+      showReplicationFlows: false,
     };
+
+    let resizeRaf = null;
+    let lastObservedSize = { width: 0, height: 0 };
+    let flowAnimationId = null;
+    const flowLinesToAnimate = [];
+    const FLOW_DASH_CYCLE = 18;
+    const FLOW_ANIMATION_MS = 1100;
 
     /**
      * Assigns nodes to regions based on node count and region count.
@@ -138,7 +155,7 @@
     function layoutCircleNodes() {
       if (appState.regionMode !== 'single') return;
 
-      const containerSize = vizContainer.offsetWidth;
+      const containerSize = vizWrapper.clientWidth;
       if (!containerSize) return;
 
       const radius = containerSize * 0.375;
@@ -155,6 +172,194 @@
         nodeEl.style.left = `${x}px`;
         nodeEl.style.top = `${y}px`;
       });
+
+      updateReplicationFlows();
+    }
+
+    /**
+     * Returns the center point of a node relative to the visualization container.
+     */
+    function getNodeCenter(nodeEl) {
+      // Circle layout stores the center directly in left/top.
+      if (!nodeEl.classList.contains('node--in-row') && nodeEl.style.left && nodeEl.style.top) {
+        return {
+          x: parseFloat(nodeEl.style.left),
+          y: parseFloat(nodeEl.style.top),
+        };
+      }
+
+      const containerRect = vizWrapper.getBoundingClientRect();
+      const nodeRect = nodeEl.getBoundingClientRect();
+      return {
+        x: nodeRect.left - containerRect.left + nodeRect.width / 2,
+        y: nodeRect.top - containerRect.top + nodeRect.height / 2,
+      };
+    }
+
+    /**
+     * Shortens a line segment so arrows start/end at node edges instead of centers.
+     */
+    function shortenLine(x1, y1, x2, y2, inset) {
+      const dx = x2 - x1;
+      const dy = y2 - y1;
+      const dist = Math.sqrt(dx * dx + dy * dy);
+      if (dist <= inset * 2) {
+        return { x1, y1, x2, y2 };
+      }
+      const ux = dx / dist;
+      const uy = dy / dist;
+      return {
+        x1: x1 + ux * inset,
+        y1: y1 + uy * inset,
+        x2: x2 - ux * inset,
+        y2: y2 - uy * inset,
+      };
+    }
+
+    function stopFlowAnimation() {
+      if (flowAnimationId !== null) {
+        cancelAnimationFrame(flowAnimationId);
+        flowAnimationId = null;
+      }
+      flowLinesToAnimate.length = 0;
+    }
+
+    function startFlowAnimation() {
+      if (
+        flowAnimationId !== null ||
+        flowLinesToAnimate.length === 0 ||
+        !appState.showReplicationFlows ||
+        window.matchMedia('(prefers-reduced-motion: reduce)').matches
+      ) {
+        return;
+      }
+
+      const startTime = performance.now();
+      function animateFrame(now) {
+        const progress = ((now - startTime) % FLOW_ANIMATION_MS) / FLOW_ANIMATION_MS;
+        const offset = -(progress * FLOW_DASH_CYCLE);
+        for (const line of flowLinesToAnimate) {
+          line.setAttribute('stroke-dashoffset', offset);
+        }
+        if (appState.showReplicationFlows && flowLinesToAnimate.length > 0) {
+          flowAnimationId = requestAnimationFrame(animateFrame);
+        } else {
+          flowAnimationId = null;
+        }
+      }
+      flowAnimationId = requestAnimationFrame(animateFrame);
+    }
+
+    /**
+     * Ensures the replication-flow SVG overlay exists on the visualization wrapper.
+     */
+    function ensureReplicationOverlay() {
+      let overlay = vizWrapper.querySelector('#replication-overlay');
+      if (overlay) return overlay;
+
+      overlay = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+      overlay.id = 'replication-overlay';
+      overlay.classList.add('replication-overlay', 'hidden');
+      overlay.setAttribute('aria-hidden', 'true');
+      overlay.setAttribute('xmlns', 'http://www.w3.org/2000/svg');
+      overlay.setAttribute('preserveAspectRatio', 'none');
+
+      overlay.innerHTML = `
+        <defs>
+          <marker id="replication-arrow" markerWidth="10" markerHeight="10" refX="9" refY="5" orient="auto" markerUnits="userSpaceOnUse">
+            <path d="M0,0 L10,5 L0,10 Z" fill="#00ED64" />
+          </marker>
+        </defs>
+        <g class="replication-flows"></g>
+      `;
+
+      vizWrapper.insertBefore(overlay, vizContainer);
+      return overlay;
+    }
+
+    /**
+     * Draws animated replication arrows from the primary to each healthy secondary.
+     */
+    function updateReplicationFlows() {
+      stopFlowAnimation();
+
+      const overlay = ensureReplicationOverlay();
+      const flowsGroup = overlay.querySelector('.replication-flows');
+      flowsGroup.innerHTML = '';
+
+      overlay.classList.toggle('hidden', !appState.showReplicationFlows);
+
+      if (!appState.showReplicationFlows) return;
+
+      const width = vizWrapper.clientWidth;
+      const height = vizWrapper.clientHeight;
+      if (!width || !height) return;
+
+      overlay.setAttribute('viewBox', `0 0 ${width} ${height}`);
+
+      const primaryIndex = appState.primaryIndex;
+      const failedCount = appState.failedIndices.size;
+      const majority = Math.floor(appState.totalNodes / 2) + 1;
+      const hasWritablePrimary = primaryIndex !== -1 && failedCount < majority;
+
+      if (!hasWritablePrimary || appState.failedIndices.has(primaryIndex)) return;
+
+      const primaryNode = vizContainer.querySelector(`.node[data-id='${primaryIndex}']`);
+      if (!primaryNode) return;
+
+      const primaryCenter = getNodeCenter(primaryNode);
+      const nodeInset = Math.min(primaryNode.offsetWidth, primaryNode.offsetHeight) * 0.35;
+      const shouldAnimate = !window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+      for (let i = 0; i < appState.totalNodes; i++) {
+        if (i === primaryIndex || appState.failedIndices.has(i)) continue;
+
+        const secondaryNode = vizContainer.querySelector(`.node[data-id='${i}']`);
+        if (!secondaryNode) continue;
+
+        const secondaryCenter = getNodeCenter(secondaryNode);
+        const line = shortenLine(
+          primaryCenter.x,
+          primaryCenter.y,
+          secondaryCenter.x,
+          secondaryCenter.y,
+          nodeInset
+        );
+
+        const flowLine = document.createElementNS('http://www.w3.org/2000/svg', 'line');
+        flowLine.classList.add('replication-flow');
+        flowLine.setAttribute('x1', line.x1);
+        flowLine.setAttribute('y1', line.y1);
+        flowLine.setAttribute('x2', line.x2);
+        flowLine.setAttribute('y2', line.y2);
+        flowLine.setAttribute('stroke', '#00ED64');
+        flowLine.setAttribute('stroke-width', '2.5');
+        flowLine.setAttribute('stroke-linecap', 'round');
+        flowLine.setAttribute('stroke-dasharray', '10 8');
+        flowLine.setAttribute('stroke-dashoffset', '0');
+        flowLine.setAttribute('fill', 'none');
+        flowLine.setAttribute('marker-end', 'url(#replication-arrow)');
+        flowsGroup.appendChild(flowLine);
+
+        if (shouldAnimate) {
+          flowLinesToAnimate.push(flowLine);
+        }
+      }
+
+      startFlowAnimation();
+    }
+
+    function updateReplicationFlowButton() {
+      replicationFlowBtn.textContent = appState.showReplicationFlows
+        ? 'Replication Flow: On'
+        : 'Replication Flow: Off';
+      replicationFlowBtn.classList.toggle('active', appState.showReplicationFlows);
+    }
+
+    function toggleReplicationFlows() {
+      appState.showReplicationFlows = !appState.showReplicationFlows;
+      updateReplicationFlowButton();
+      requestAnimationFrame(() => updateReplicationFlows());
     }
 
     /**
@@ -163,6 +368,7 @@
      */
     function generateNodes(numNodes) {
       // 1. Reset state and UI
+      lastObservedSize = { width: 0, height: 0 };
       vizContainer.innerHTML = '';
       appState.totalNodes = numNodes;
       appState.primaryIndex = 0;
@@ -186,6 +392,8 @@
 
       if (appState.regionMode === 'single') {
         // --- Circular layout for single region ---
+        vizWrapper.classList.remove('multi-region');
+        vizWrapper.classList.add('single-region');
         vizContainer.classList.remove('multi-region');
         vizContainer.classList.add('single-region');
 
@@ -218,6 +426,8 @@
         layoutCircleNodes();
       } else {
         // --- Square grid layout for multi-region ---
+        vizWrapper.classList.remove('single-region');
+        vizWrapper.classList.add('multi-region');
         vizContainer.classList.remove('single-region');
         vizContainer.classList.add('multi-region');
         // Group nodes by region
@@ -306,7 +516,9 @@
       // 4. Update UI elements
       updateButtonStyles(numNodes);
       updateRegionModeStyles();
+      updateReplicationFlowButton();
       updateStatus();
+      requestAnimationFrame(() => updateReplicationFlows());
     }
 
     /**
@@ -373,6 +585,7 @@
       }
 
       updateStatus();
+      updateReplicationFlows();
     }
 
     /**
@@ -433,6 +646,7 @@
       }
 
       updateStatus();
+      updateReplicationFlows();
     }
 
     /**
@@ -518,6 +732,8 @@
         newLabel.classList.remove('secondary');
         newLabel.classList.add('primary');
       }
+
+      updateReplicationFlows();
     }
 
 
@@ -631,6 +847,8 @@
 
     resetBtn.addEventListener('click', resetApp);
 
+    replicationFlowBtn.addEventListener('click', toggleReplicationFlows);
+
     regionCountBtns.forEach(btn => {
       btn.addEventListener('click', () => {
         const count = parseInt(btn.id.replace('region-count-', ''), 10);
@@ -641,13 +859,27 @@
       });
     });
 
-    // Re-layout circle on container resize
-    const resizeObserver = new ResizeObserver(() => {
-      if (appState.regionMode === 'single') {
-        layoutCircleNodes();
+    // Re-layout circle on container resize (ignore overlay-driven size churn)
+    const resizeObserver = new ResizeObserver((entries) => {
+      const { width, height } = entries[0].contentRect;
+      if (
+        Math.abs(width - lastObservedSize.width) < 1 &&
+        Math.abs(height - lastObservedSize.height) < 1
+      ) {
+        return;
       }
+      lastObservedSize = { width, height };
+
+      if (resizeRaf) cancelAnimationFrame(resizeRaf);
+      resizeRaf = requestAnimationFrame(() => {
+        if (appState.regionMode === 'single') {
+          layoutCircleNodes();
+        } else if (appState.showReplicationFlows) {
+          updateReplicationFlows();
+        }
+      });
     });
-    resizeObserver.observe(vizContainer);
+    resizeObserver.observe(vizWrapper);
 
     // Initial load with 3 nodes
     window.addEventListener('load', () => generateNodes(3));

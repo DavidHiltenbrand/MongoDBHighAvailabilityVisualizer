@@ -84,6 +84,7 @@ h1 {
 
 .controls button:hover,
 .controls button.active,
+.replication-flow-btn.active,
 .region-toggle:hover,
 .region-toggle.outage,
 .region-count-btn:hover,
@@ -149,18 +150,53 @@ h1 {
 /* =========================
    Visualization Container
    ========================= */
-#visualization-container {
+.visualization-wrapper {
     position: relative;
     margin: clamp(12px, 3vw, 20px) auto;
     width: 100%;
     max-width: min(95vw, 720px);
+    overflow: hidden;
 }
 
-#visualization-container.single-region {
+.visualization-wrapper.single-region {
     width: var(--viz-size);
     height: var(--viz-size);
     max-width: var(--viz-size);
     aspect-ratio: 1;
+}
+
+.visualization-wrapper.multi-region {
+    height: auto;
+}
+
+#visualization-container {
+    position: relative;
+    width: 100%;
+    height: 100%;
+}
+
+.replication-overlay {
+    position: absolute;
+    inset: 0;
+    display: block;
+    width: 100%;
+    height: 100%;
+    pointer-events: none;
+    z-index: 0;
+    overflow: hidden;
+}
+
+.replication-overlay.hidden {
+    display: none;
+}
+
+.replication-flow {
+    opacity: 0.9;
+}
+
+#visualization-container.single-region {
+    width: 100%;
+    height: 100%;
 }
 
 #visualization-container.multi-region {
@@ -229,6 +265,7 @@ footer svg {
     align-items: center;
     cursor: pointer;
     transform: translate(-50%, -50%);
+    z-index: 1;
 }
 
 .node--in-row {
