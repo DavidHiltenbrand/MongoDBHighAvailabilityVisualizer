@@ -15,7 +15,7 @@
   <h1>MongoDB High Availability Visualizer</h1>
 
   <div class="controls">
-    <span># of Nodes:</span>
+    <span>Replica Set:</span>
     <button id="btn-3" class="node-btn active">3 nodes</button>
     <button id="btn-5" class="node-btn">5 nodes</button>
     <button id="btn-7" class="node-btn">7 nodes</button>
@@ -45,7 +45,7 @@
       id="replication-flow-btn"
       class="controls-divider replication-flow-btn"
       title="Show animated arrows from the primary to each healthy secondary"
-    >Replication Flow: Off</button>
+    >See Replication Flow: Off</button>
   </div>
 
   <div id="region-toggles" class="hidden">
@@ -351,8 +351,8 @@
 
     function updateReplicationFlowButton() {
       replicationFlowBtn.textContent = appState.showReplicationFlows
-        ? 'Replication Flow: On'
-        : 'Replication Flow: Off';
+        ? 'See Replication Flow: On'
+        : 'See Replication Flow: Off';
       replicationFlowBtn.classList.toggle('active', appState.showReplicationFlows);
     }
 
