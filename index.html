@@ -45,7 +45,7 @@
       id="replication-flow-btn"
       class="controls-divider replication-flow-btn"
       title="Show animated arrows from the primary to each healthy secondary"
-    >See Replication Flow: Off</button>
+    >Show Replication Flow: Off</button>
   </div>
 
   <div id="region-toggles" class="hidden">
@@ -409,8 +409,8 @@
 
     function updateReplicationFlowButton() {
       replicationFlowBtn.textContent = appState.showReplicationFlows
-        ? 'See Replication Flow: On'
-        : 'See Replication Flow: Off';
+        ? 'Show Replication Flow: On'
+        : 'Show Replication Flow: Off';
       replicationFlowBtn.classList.toggle('active', appState.showReplicationFlows);
     }
 
