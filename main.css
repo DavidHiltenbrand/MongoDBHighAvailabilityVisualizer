@@ -155,14 +155,13 @@ h1 {
     margin: clamp(12px, 3vw, 20px) auto;
     width: 100%;
     max-width: min(95vw, 720px);
-    overflow: hidden;
+    overflow: visible;
 }
 
 .visualization-wrapper.single-region {
     width: var(--viz-size);
-    height: var(--viz-size);
+    min-height: var(--viz-size);
     max-width: var(--viz-size);
-    aspect-ratio: 1;
 }
 
 .visualization-wrapper.multi-region {
@@ -171,6 +170,11 @@ h1 {
 
 #visualization-container {
     position: relative;
+    width: 100%;
+    height: 100%;
+}
+
+#visualization-container.single-region {
     width: 100%;
     height: 100%;
 }
@@ -194,11 +198,6 @@ h1 {
     opacity: 0.9;
 }
 
-#visualization-container.single-region {
-    width: 100%;
-    height: 100%;
-}
-
 #visualization-container.multi-region {
     display: flex;
     flex-direction: column;
@@ -217,6 +216,8 @@ h1 {
     margin-top: clamp(12px, 3vw, 20px);
     text-align: center;
     transition: color 0.3s ease;
+    position: relative;
+    z-index: 2;
 }
 
 /* =========================
@@ -259,7 +260,6 @@ footer svg {
 .node {
     position: absolute;
     width: var(--node-width);
-    height: var(--node-height);
     display: flex;
     flex-direction: column;
     align-items: center;
@@ -273,10 +273,6 @@ footer svg {
     transform: none;
     flex-shrink: 0;
     margin: 0;
-}
-
-.node:not(.node--in-row) .icon-container {
-    margin-top: var(--icon-margin-top);
 }
 
 .node .icon-container {

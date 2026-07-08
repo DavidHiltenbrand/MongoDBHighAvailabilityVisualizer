@@ -149,6 +149,18 @@
       return Array(numNodes).fill(1);
     }
 
+    function getNodeExtents(nodeEl) {
+      const nodeRect = nodeEl.getBoundingClientRect();
+      const label = nodeEl.querySelector('.label');
+      const labelRect = label ? label.getBoundingClientRect() : nodeRect;
+      return {
+        top: Math.min(nodeRect.top, labelRect.top),
+        bottom: Math.max(nodeRect.bottom, labelRect.bottom),
+        left: Math.min(nodeRect.left, labelRect.left),
+        right: Math.max(nodeRect.right, labelRect.right),
+      };
+    }
+
     /**
      * Positions nodes in a circle based on the current container dimensions.
      */
@@ -158,62 +170,117 @@
       const containerSize = vizWrapper.clientWidth;
       if (!containerSize) return;
 
-      const radius = containerSize * 0.375;
       const centerX = containerSize / 2;
       const centerY = containerSize / 2;
       const angleOffset = -Math.PI / 2;
       const nodes = vizContainer.querySelectorAll('.node');
       const numNodes = nodes.length;
+      if (!numNodes) return;
 
-      nodes.forEach((nodeEl, i) => {
-        const angle = (i / numNodes) * 2 * Math.PI + angleOffset;
-        const x = centerX + radius * Math.cos(angle);
-        const y = centerY + radius * Math.sin(angle);
-        nodeEl.style.left = `${x}px`;
-        nodeEl.style.top = `${y}px`;
+      const padding = 12;
+      let radius = containerSize * 0.375;
+
+      function placeNodes(r) {
+        nodes.forEach((nodeEl, i) => {
+          const angle = (i / numNodes) * 2 * Math.PI + angleOffset;
+          nodeEl.style.left = `${centerX + r * Math.cos(angle)}px`;
+          nodeEl.style.top = `${centerY + r * Math.sin(angle)}px`;
+        });
+      }
+
+      function nodesFitHorizontally() {
+        const bounds = vizContainer.getBoundingClientRect();
+        const leftLimit = bounds.left + padding;
+        const rightLimit = bounds.right - padding;
+
+        return [...nodes].every((nodeEl) => {
+          const ext = getNodeExtents(nodeEl);
+          return ext.left >= leftLimit && ext.right <= rightLimit;
+        });
+      }
+
+      placeNodes(radius);
+      while (radius > 0 && !nodesFitHorizontally()) {
+        radius -= 1;
+        placeNodes(radius);
+      }
+
+      const containerTop = vizContainer.getBoundingClientRect().top;
+      let extentTop = Infinity;
+      let extentBottom = -Infinity;
+      nodes.forEach((nodeEl) => {
+        const ext = getNodeExtents(nodeEl);
+        extentTop = Math.min(extentTop, ext.top);
+        extentBottom = Math.max(extentBottom, ext.bottom);
       });
+
+      const topOverflow = Math.max(0, (containerTop + padding) - extentTop);
+      const bottomOverflow = Math.max(0, extentBottom - (containerTop + containerSize - padding));
+      vizWrapper.style.height = `${Math.ceil(containerSize + topOverflow + bottomOverflow)}px`;
 
       updateReplicationFlows();
     }
 
     /**
-     * Returns the center point of a node relative to the visualization container.
+     * Returns the icon bounds for a node relative to the visualization container.
      */
-    function getNodeCenter(nodeEl) {
-      // Circle layout stores the center directly in left/top.
-      if (!nodeEl.classList.contains('node--in-row') && nodeEl.style.left && nodeEl.style.top) {
-        return {
-          x: parseFloat(nodeEl.style.left),
-          y: parseFloat(nodeEl.style.top),
-        };
-      }
+    function getIconRect(nodeEl) {
+      const containerRect = vizContainer.getBoundingClientRect();
+      const icon = nodeEl.querySelector('.icon-container');
+      const targetRect = icon
+        ? icon.getBoundingClientRect()
+        : nodeEl.getBoundingClientRect();
 
-      const containerRect = vizWrapper.getBoundingClientRect();
-      const nodeRect = nodeEl.getBoundingClientRect();
       return {
-        x: nodeRect.left - containerRect.left + nodeRect.width / 2,
-        y: nodeRect.top - containerRect.top + nodeRect.height / 2,
+        centerX: targetRect.left - containerRect.left + targetRect.width / 2,
+        centerY: targetRect.top - containerRect.top + targetRect.height / 2,
+        halfWidth: targetRect.width / 2,
+        halfHeight: targetRect.height / 2,
       };
     }
 
     /**
-     * Shortens a line segment so arrows start/end at node edges instead of centers.
+     * Returns a point on the icon boundary along the line toward a target.
      */
-    function shortenLine(x1, y1, x2, y2, inset) {
-      const dx = x2 - x1;
-      const dy = y2 - y1;
-      const dist = Math.sqrt(dx * dx + dy * dy);
-      if (dist <= inset * 2) {
-        return { x1, y1, x2, y2 };
+    function getIconEdgePoint(iconRect, targetX, targetY, overlap = 0) {
+      const dx = targetX - iconRect.centerX;
+      const dy = targetY - iconRect.centerY;
+      if (dx === 0 && dy === 0) {
+        return { x: iconRect.centerX, y: iconRect.centerY };
       }
-      const ux = dx / dist;
-      const uy = dy / dist;
+
+      const scaleX = dx !== 0 ? (iconRect.halfWidth + overlap) / Math.abs(dx) : Infinity;
+      const scaleY = dy !== 0 ? (iconRect.halfHeight + overlap) / Math.abs(dy) : Infinity;
+      const scale = Math.min(scaleX, scaleY);
+
       return {
-        x1: x1 + ux * inset,
-        y1: y1 + uy * inset,
-        x2: x2 - ux * inset,
-        y2: y2 - uy * inset,
+        x: iconRect.centerX + dx * scale,
+        y: iconRect.centerY + dy * scale,
       };
+    }
+
+    /**
+     * Computes replication-flow endpoints from icon edges so arrows touch node icons.
+     */
+    function getReplicationFlowLine(primaryNode, secondaryNode) {
+      const primaryIcon = getIconRect(primaryNode);
+      const secondaryIcon = getIconRect(secondaryNode);
+      const edgeOverlap = 1;
+
+      const start = getIconEdgePoint(
+        primaryIcon,
+        secondaryIcon.centerX,
+        secondaryIcon.centerY,
+        edgeOverlap
+      );
+      const end = getIconEdgePoint(
+        secondaryIcon,
+        primaryIcon.centerX,
+        primaryIcon.centerY,
+        edgeOverlap
+      );
+
+      return { x1: start.x, y1: start.y, x2: end.x, y2: end.y };
     }
 
     function stopFlowAnimation() {
@@ -307,8 +374,6 @@
       const primaryNode = vizContainer.querySelector(`.node[data-id='${primaryIndex}']`);
       if (!primaryNode) return;
 
-      const primaryCenter = getNodeCenter(primaryNode);
-      const nodeInset = Math.min(primaryNode.offsetWidth, primaryNode.offsetHeight) * 0.35;
       const shouldAnimate = !window.matchMedia('(prefers-reduced-motion: reduce)').matches;
 
       for (let i = 0; i < appState.totalNodes; i++) {
@@ -317,14 +382,7 @@
         const secondaryNode = vizContainer.querySelector(`.node[data-id='${i}']`);
         if (!secondaryNode) continue;
 
-        const secondaryCenter = getNodeCenter(secondaryNode);
-        const line = shortenLine(
-          primaryCenter.x,
-          primaryCenter.y,
-          secondaryCenter.x,
-          secondaryCenter.y,
-          nodeInset
-        );
+        const line = getReplicationFlowLine(primaryNode, secondaryNode);
 
         const flowLine = document.createElementNS('http://www.w3.org/2000/svg', 'line');
         flowLine.classList.add('replication-flow');
@@ -424,10 +482,12 @@
         }
 
         layoutCircleNodes();
+        requestAnimationFrame(() => layoutCircleNodes());
       } else {
         // --- Square grid layout for multi-region ---
         vizWrapper.classList.remove('single-region');
         vizWrapper.classList.add('multi-region');
+        vizWrapper.style.height = '';
         vizContainer.classList.remove('single-region');
         vizContainer.classList.add('multi-region');
         // Group nodes by region
