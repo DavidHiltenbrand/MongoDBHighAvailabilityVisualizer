@@ -49,7 +49,16 @@ h1 {
     font-weight: 600;
     font-size: clamp(1.25rem, 5vw, 2rem);
     text-align: center;
-    margin: 0 0 0.5em;
+    margin: 0 0 0.35em;
+}
+
+.tagline {
+    text-align: center;
+    color: #4a6672;
+    font-size: clamp(0.9rem, 2.5vw, 1rem);
+    margin: 0 0 clamp(16px, 3vw, 24px);
+    max-width: 36rem;
+    line-height: 1.45;
 }
 
 /* =========================
