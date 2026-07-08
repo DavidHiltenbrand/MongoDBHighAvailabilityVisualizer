@@ -42,15 +42,22 @@
       </span>
     </span>
     <button id="reset-btn" class="controls-divider">Reset</button>
-    <button
-      id="replication-flow-btn"
-      class="controls-divider replication-flow-btn"
-      title="Show animated arrows from the primary to each healthy secondary"
-    >Show Replication Flow: Off</button>
+    <span class="controls-divider replication-flow-control">
+      <label class="toggle-switch" for="replication-flow-toggle">
+        <span class="toggle-label">Show Replication:</span>
+        <input
+          type="checkbox"
+          id="replication-flow-toggle"
+          role="switch"
+          aria-label="Show replication arrows from primary to secondaries"
+        >
+        <span class="toggle-track" aria-hidden="true"></span>
+      </label>
+    </span>
   </div>
 
   <div id="region-toggles" class="hidden">
-    <span>Choose Region Outage:</span>
+    <span>Simulate Region Outage:</span>
     <button class="region-toggle" data-region="1">Region 1: Available</button>
     <button class="region-toggle" data-region="2">Region 2: Available</button>
     <button class="region-toggle hidden" data-region="3">Region 3: Available</button>
@@ -92,7 +99,7 @@
     const regionToggleBtn3 = regionToggles.querySelector('.region-toggle[data-region="3"]');
     const regionCountControls = document.getElementById('region-count-controls');
     const region3GoldStar = document.getElementById('region-3-gold-star');
-    const replicationFlowBtn = document.getElementById('replication-flow-btn');
+    const replicationFlowToggle = document.getElementById('replication-flow-toggle');
 
     const COLORS = {
       PRIMARY: 'var(--primary-green)',
@@ -408,16 +415,14 @@
       startFlowAnimation();
     }
 
-    function updateReplicationFlowButton() {
-      replicationFlowBtn.textContent = appState.showReplicationFlows
-        ? 'Show Replication Flow: On'
-        : 'Show Replication Flow: Off';
-      replicationFlowBtn.classList.toggle('active', appState.showReplicationFlows);
+    function updateReplicationFlowToggle() {
+      replicationFlowToggle.checked = appState.showReplicationFlows;
+      replicationFlowToggle.setAttribute('aria-checked', String(appState.showReplicationFlows));
     }
 
     function toggleReplicationFlows() {
-      appState.showReplicationFlows = !appState.showReplicationFlows;
-      updateReplicationFlowButton();
+      appState.showReplicationFlows = replicationFlowToggle.checked;
+      updateReplicationFlowToggle();
       requestAnimationFrame(() => updateReplicationFlows());
     }
 
@@ -577,7 +582,7 @@
       // 4. Update UI elements
       updateButtonStyles(numNodes);
       updateRegionModeStyles();
-      updateReplicationFlowButton();
+      updateReplicationFlowToggle();
       updateStatus();
       requestAnimationFrame(() => updateReplicationFlows());
     }
@@ -908,7 +913,7 @@
 
     resetBtn.addEventListener('click', resetApp);
 
-    replicationFlowBtn.addEventListener('click', toggleReplicationFlows);
+    replicationFlowToggle.addEventListener('change', toggleReplicationFlows);
 
     regionCountBtns.forEach(btn => {
       btn.addEventListener('click', () => {

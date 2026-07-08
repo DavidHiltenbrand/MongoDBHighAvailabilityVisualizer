@@ -93,13 +93,72 @@ h1 {
 
 .controls button:hover,
 .controls button.active,
-.replication-flow-btn.active,
 .region-toggle:hover,
 .region-toggle.outage,
 .region-count-btn:hover,
 .region-count-btn.active {
     background-color: var(--primary-green);
     color: var(--page-background);
+}
+
+.replication-flow-control {
+    display: inline-flex;
+    align-items: center;
+}
+
+.toggle-switch {
+    display: inline-flex;
+    align-items: center;
+    gap: 10px;
+    cursor: pointer;
+    user-select: none;
+}
+
+.toggle-label {
+    font-weight: normal;
+}
+
+.toggle-switch input {
+    position: absolute;
+    opacity: 0;
+    width: 0;
+    height: 0;
+}
+
+.toggle-track {
+    position: relative;
+    width: 44px;
+    height: 24px;
+    border-radius: 999px;
+    background-color: #c5d4db;
+    transition: background-color 0.2s;
+    flex-shrink: 0;
+}
+
+.toggle-track::after {
+    content: '';
+    position: absolute;
+    top: 2px;
+    left: 2px;
+    width: 20px;
+    height: 20px;
+    border-radius: 50%;
+    background-color: var(--page-background);
+    transition: transform 0.2s;
+    box-shadow: 0 1px 3px rgba(0, 30, 43, 0.2);
+}
+
+.toggle-switch input:checked + .toggle-track {
+    background-color: var(--primary-green);
+}
+
+.toggle-switch input:checked + .toggle-track::after {
+    transform: translateX(20px);
+}
+
+.toggle-switch input:focus-visible + .toggle-track {
+    outline: 2px solid var(--secondary-green);
+    outline-offset: 2px;
 }
 
 .region-toggle.outage {
