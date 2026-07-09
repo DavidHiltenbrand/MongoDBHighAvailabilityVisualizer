@@ -7,6 +7,13 @@
   <meta name="image" property="og:image" content="img/app-preview.png">
   <meta name="description" property="og:description" content="Simply Visualize MongoDB High Availability">
   <title>MongoDB High Availability Visualizer</title>
+  <script>
+    (function () {
+      const stored = localStorage.getItem('theme-preference');
+      const theme = stored === 'light' || stored === 'dark' || stored === 'system' ? stored : 'system';
+      document.documentElement.dataset.theme = theme;
+    })();
+  </script>
   <link rel="stylesheet" href="main.css">
   <link rel="icon" type="image/png" href="img/mdb-database.png">
 </head>
@@ -83,17 +90,38 @@
   <p id="status-text">Status: Primary Accepting Writes</p>
 
   <footer>
-    <span>Made by David Hiltenbrand (with the help of ✨AI✨)</span>
-    <a href="https://www.linkedin.com/in/davidehiltenbrand/" target="_blank" rel="noopener noreferrer" aria-label="LinkedIn Profile">
-      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor">
-        <path d="M20.5 2h-17A1.5 1.5 0 0 0 2 3.5v17A1.5 1.5 0 0 0 3.5 22h17a1.5 1.5 0 0 0 1.5-1.5v-17A1.5 1.5 0 0 0 20.5 2ZM8 19H5V8h3v11ZM6.5 6.73c-.97 0-1.75-.78-1.75-1.75S5.53 3.23 6.5 3.23c.97 0 1.75.78 1.75 1.75S7.47 6.73 6.5 6.73ZM20 19h-3v-5.5c0-1.33-.03-3.04-1.85-3.04-1.85 0-2.13 1.44-2.13 2.94V19h-3V8h2.88v1.32h.04c.4-.76 1.37-1.55 2.84-1.55 3.03 0 3.59 1.99 3.59 4.58V19Z"/>
-      </svg>
-    </a>
-    <a href="https://github.com/DavidHiltenbrand/MongoDBHighAvailabilityVisualizer" target="_blank" rel="noopener noreferrer" aria-label="GitHub Profile">
-      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16" fill="currentColor">
-        <path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27s1.36.09 2 .27c1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.01 8.01 0 0 0 16 8c0-4.42-3.58-8-8-8Z"/>
-      </svg>
-    </a>
+    <div class="theme-toggle" id="themeToggle" role="group" aria-label="Color theme">
+      <button type="button" class="theme-toggle-btn" data-theme-pref="system" title="System theme" aria-label="System theme" aria-pressed="false">
+        <svg viewBox="0 0 24 24" fill="none" aria-hidden="true">
+          <rect x="3" y="4" width="18" height="12" rx="2" stroke="currentColor" stroke-width="1.75"/>
+          <path d="M8 20h8" stroke="currentColor" stroke-width="1.75" stroke-linecap="round"/>
+        </svg>
+      </button>
+      <button type="button" class="theme-toggle-btn" data-theme-pref="light" title="Light theme" aria-label="Light theme" aria-pressed="false">
+        <svg viewBox="0 0 24 24" fill="none" aria-hidden="true">
+          <circle cx="12" cy="12" r="4" stroke="currentColor" stroke-width="1.75"/>
+          <path d="M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M4.93 19.07l1.41-1.41M17.66 6.34l1.41-1.41" stroke="currentColor" stroke-width="1.75" stroke-linecap="round"/>
+        </svg>
+      </button>
+      <button type="button" class="theme-toggle-btn" data-theme-pref="dark" title="Dark theme" aria-label="Dark theme" aria-pressed="false">
+        <svg viewBox="0 0 24 24" fill="none" aria-hidden="true">
+          <path d="M20 14.5A7.5 7.5 0 0 1 9.5 4 6.5 6.5 0 1 0 20 14.5z" stroke="currentColor" stroke-width="1.75" stroke-linejoin="round"/>
+        </svg>
+      </button>
+    </div>
+    <div class="footer-links">
+      <span>Made by David Hiltenbrand (with the help of ✨AI✨)</span>
+      <a href="https://www.linkedin.com/in/davidehiltenbrand/" target="_blank" rel="noopener noreferrer" aria-label="LinkedIn Profile">
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor">
+          <path d="M20.5 2h-17A1.5 1.5 0 0 0 2 3.5v17A1.5 1.5 0 0 0 3.5 22h17a1.5 1.5 0 0 0 1.5-1.5v-17A1.5 1.5 0 0 0 20.5 2ZM8 19H5V8h3v11ZM6.5 6.73c-.97 0-1.75-.78-1.75-1.75S5.53 3.23 6.5 3.23c.97 0 1.75.78 1.75 1.75S7.47 6.73 6.5 6.73ZM20 19h-3v-5.5c0-1.33-.03-3.04-1.85-3.04-1.85 0-2.13 1.44-2.13 2.94V19h-3V8h2.88v1.32h.04c.4-.76 1.37-1.55 2.84-1.55 3.03 0 3.59 1.99 3.59 4.58V19Z"/>
+        </svg>
+      </a>
+      <a href="https://github.com/DavidHiltenbrand/MongoDBHighAvailabilityVisualizer" target="_blank" rel="noopener noreferrer" aria-label="GitHub Profile">
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16" fill="currentColor">
+          <path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27s1.36.09 2 .27c1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.01 8.01 0 0 0 16 8c0-4.42-3.58-8-8-8Z"/>
+        </svg>
+      </a>
+    </div>
   </footer>
 
   <script>
@@ -114,9 +142,11 @@
     const regionCountControls = document.getElementById('region-count-controls');
     const region3GoldStar = document.getElementById('region-3-gold-star');
     const replicationFlowToggle = document.getElementById('replication-flow-toggle');
+    const themeToggle = document.getElementById('themeToggle');
+    const THEME_STORAGE_KEY = 'theme-preference';
 
     const COLORS = {
-      PRIMARY: 'var(--primary-green)',
+      PRIMARY: 'var(--status-color)',
       SECONDARY: 'var(--secondary-green)',
       FAILURE: 'var(--failure-red)',
     };
@@ -356,7 +386,7 @@
       overlay.innerHTML = `
         <defs>
           <marker id="replication-arrow" markerWidth="10" markerHeight="10" refX="9" refY="5" orient="auto" markerUnits="userSpaceOnUse">
-            <path d="M0,0 L10,5 L0,10 Z" fill="#00ED64" />
+            <path d="M0,0 L10,5 L0,10 Z" fill="var(--secondary-green)" />
           </marker>
         </defs>
         <g class="replication-flows"></g>
@@ -412,7 +442,7 @@
         flowLine.setAttribute('y1', line.y1);
         flowLine.setAttribute('x2', line.x2);
         flowLine.setAttribute('y2', line.y2);
-        flowLine.setAttribute('stroke', '#00ED64');
+        flowLine.setAttribute('stroke', 'var(--secondary-green)');
         flowLine.setAttribute('stroke-width', '2.5');
         flowLine.setAttribute('stroke-linecap', 'round');
         flowLine.setAttribute('stroke-dasharray', '10 8');
@@ -432,6 +462,41 @@
     function updateReplicationFlowToggle() {
       replicationFlowToggle.checked = appState.showReplicationFlows;
       replicationFlowToggle.setAttribute('aria-checked', String(appState.showReplicationFlows));
+    }
+
+    function getStoredTheme() {
+      const stored = localStorage.getItem(THEME_STORAGE_KEY);
+      return stored === 'light' || stored === 'dark' || stored === 'system' ? stored : 'system';
+    }
+
+    function updateThemeToggleState(theme) {
+      themeToggle.querySelectorAll('.theme-toggle-btn').forEach((btn) => {
+        const isActive = btn.dataset.themePref === theme;
+        btn.classList.toggle('active', isActive);
+        btn.setAttribute('aria-pressed', String(isActive));
+      });
+    }
+
+    function applyTheme(theme) {
+      document.documentElement.dataset.theme = theme;
+      localStorage.setItem(THEME_STORAGE_KEY, theme);
+      updateThemeToggleState(theme);
+    }
+
+    function initTheme() {
+      applyTheme(getStoredTheme());
+
+      themeToggle.querySelectorAll('.theme-toggle-btn').forEach((btn) => {
+        btn.addEventListener('click', () => {
+          applyTheme(btn.dataset.themePref);
+        });
+      });
+
+      window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', () => {
+        if (getStoredTheme() === 'system') {
+          document.documentElement.dataset.theme = 'system';
+        }
+      });
     }
 
     function toggleReplicationFlows() {
@@ -486,7 +551,8 @@
           // Add icons and label
           nodeEl.innerHTML = `
             <div class="icon-container">
-              <img src="img/mdb-database.png" alt="MongoDB Database Icon" class="db-icon" />
+              <img src="img/mdb-database.png" alt="MongoDB Database Icon" class="db-icon db-icon--light" />
+              <img src="img/mdb-database-dark.png" alt="" class="db-icon db-icon--dark" aria-hidden="true" />
               ${failureXSVG}
             </div>
             <p class="label ${isPrimary ? 'primary' : 'secondary'}">
@@ -538,7 +604,8 @@
 
             nodeEl.innerHTML = `
               <div class="icon-container">
-                <img src="img/mdb-database.png" alt="MongoDB Database Icon" class="db-icon" />
+                <img src="img/mdb-database.png" alt="MongoDB Database Icon" class="db-icon db-icon--light" />
+                <img src="img/mdb-database-dark.png" alt="" class="db-icon db-icon--dark" aria-hidden="true" />
                 ${failureXSVG}
               </div>
               <p class="label ${isPrimary ? 'primary' : 'secondary'}">
@@ -962,6 +1029,7 @@
     resizeObserver.observe(vizWrapper);
 
     // Initial load with 3 nodes
+    initTheme();
     window.addEventListener('load', () => generateNodes(3));
 
     // --- Add region count button logic ---
