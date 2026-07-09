@@ -16,51 +16,64 @@
   <p class="tagline">Click a node to simulate failure. Toggle regions to simulate an outage.</p>
 
   <div class="controls">
-    <span>Replica Set:</span>
-    <button id="btn-3" class="node-btn active">3 nodes</button>
-    <button id="btn-5" class="node-btn">5 nodes</button>
-    <button id="btn-7" class="node-btn">7 nodes</button>
-    <span class="controls-divider">Deployment:</span>
-    <button id="single-region-btn" class="region-mode-btn active">Single Region</button>
-    <button id="multi-region-btn" class="region-mode-btn">Multi-Region</button>
-    <span id="region-count-controls" class="controls-divider hidden">
-      <span># of Regions:</span>
-      <button
-        id="region-count-2"
-        class="region-count-btn active"
-        title="A 2-region cluster risks downtime during a region failure if the remaining region has a minority of nodes remaining."
-      >2</button>
-      <span class="region-count-3-wrap">
+    <div class="control-group" aria-label="Configure cluster">
+      <div class="control-subgroup">
+        <span>Replica Set:</span>
+        <button id="btn-3" class="node-btn active">3 nodes</button>
+        <button id="btn-5" class="node-btn">5 nodes</button>
+        <button id="btn-7" class="node-btn">7 nodes</button>
+      </div>
+      <div class="control-subgroup">
+        <span>Deployment:</span>
+        <button id="single-region-btn" class="region-mode-btn active">Single Region</button>
+        <button id="multi-region-btn" class="region-mode-btn">Multi-Region</button>
+      </div>
+      <div id="region-count-controls" class="control-subgroup hidden">
+        <span># of Regions:</span>
         <button
-          id="region-count-3"
-          class="region-count-btn"
-          title="A 3-region cluster ensures high availability with fault tolerance across multiple regions."
-        >3</button>
-        <svg id="region-3-gold-star" class="region-3-gold-star hidden" viewBox="0 0 20 20" xmlns="http://www.w3.org/2000/svg" aria-label="Recommended">
-          <polygon points="10,1 12.4,7.1 19,7.3 13.8,11.6 15.6,18 10,14.3 4.4,18 6.2,11.6 1,7.3 7.6,7.1" fill="#FFD700" stroke="#E6B800" stroke-width="1"/>
-        </svg>
-      </span>
-    </span>
-    <button id="reset-btn" class="controls-divider">Reset</button>
-    <span class="controls-divider replication-flow-control">
-      <label class="toggle-switch" for="replication-flow-toggle">
-        <span class="toggle-label">Show Replication:</span>
-        <input
-          type="checkbox"
-          id="replication-flow-toggle"
-          role="switch"
-          aria-label="Show replication arrows from primary to secondaries"
-        >
-        <span class="toggle-track" aria-hidden="true"></span>
-      </label>
-    </span>
-  </div>
+          id="region-count-2"
+          class="region-count-btn active"
+          title="A 2-region cluster risks downtime during a region failure if the remaining region has a minority of nodes remaining."
+        >2</button>
+        <span class="region-count-3-wrap">
+          <button
+            id="region-count-3"
+            class="region-count-btn"
+            title="A 3-region cluster ensures high availability with fault tolerance across multiple regions."
+          >3</button>
+          <svg id="region-3-gold-star" class="region-3-gold-star hidden" viewBox="0 0 20 20" xmlns="http://www.w3.org/2000/svg" aria-label="Recommended">
+            <polygon points="10,1 12.4,7.1 19,7.3 13.8,11.6 15.6,18 10,14.3 4.4,18 6.2,11.6 1,7.3 7.6,7.1" fill="#FFD700" stroke="#E6B800" stroke-width="1"/>
+          </svg>
+        </span>
+      </div>
+    </div>
 
-  <div id="region-toggles" class="hidden">
-    <span>Simulate Region Outage:</span>
-    <button class="region-toggle" data-region="1">Region 1: Available</button>
-    <button class="region-toggle" data-region="2">Region 2: Available</button>
-    <button class="region-toggle hidden" data-region="3">Region 3: Available</button>
+    <div id="simulate-group" class="control-group hidden" aria-label="Simulate failures">
+      <div id="region-toggles" class="control-subgroup">
+        <span>Simulate Region Outage:</span>
+        <button class="region-toggle" data-region="1">Region 1: Available</button>
+        <button class="region-toggle" data-region="2">Region 2: Available</button>
+        <button class="region-toggle hidden" data-region="3">Region 3: Available</button>
+      </div>
+    </div>
+
+    <div class="control-group" aria-label="Reset and display options">
+      <div class="control-subgroup">
+        <button id="reset-btn">Reset</button>
+      </div>
+      <div class="control-subgroup replication-flow-control">
+        <label class="toggle-switch" for="replication-flow-toggle">
+          <span class="toggle-label">Show Replication:</span>
+          <input
+            type="checkbox"
+            id="replication-flow-toggle"
+            role="switch"
+            aria-label="Show replication arrows from primary to secondaries"
+          >
+          <span class="toggle-track" aria-hidden="true"></span>
+        </label>
+      </div>
+    </div>
   </div>
 
   <div id="visualization-wrapper" class="visualization-wrapper">
@@ -91,6 +104,7 @@
     const nodeButtons = document.querySelectorAll('.node-btn');
     const regionModeBtns = document.querySelectorAll('.region-mode-btn');
     const regionToggles = document.getElementById('region-toggles');
+    const simulateGroup = document.getElementById('simulate-group');
     const regionToggleBtns = regionToggles.querySelectorAll('.region-toggle');
     const resetBtn = document.getElementById('reset-btn');
     const regionCountBtns = document.querySelectorAll('.region-count-btn');
@@ -442,9 +456,9 @@
       // Reset region status if switching to single region
       if (appState.regionMode === 'single') {
         appState.regionStatus = {1: true, 2: true, 3: true};
-        regionToggles.classList.add('hidden');
+        simulateGroup.classList.add('hidden');
       } else {
-        regionToggles.classList.remove('hidden');
+        simulateGroup.classList.remove('hidden');
         appState.regionStatus = {1: true, 2: true, 3: true};
         regionToggleBtn3.classList.toggle('hidden', appState.regionCount === 2);
         [regionToggleBtn1, regionToggleBtn2, regionToggleBtn3].forEach((btn, idx) => {

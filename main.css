@@ -67,15 +67,35 @@ h1 {
 .controls {
     margin-bottom: clamp(16px, 4vw, 30px);
     display: flex;
-    flex-wrap: wrap;
-    gap: 10px;
+    flex-direction: column;
+    flex-wrap: nowrap;
+    gap: clamp(16px, 3vw, 24px);
     align-items: center;
     justify-content: center;
+    width: 100%;
     max-width: 100%;
 }
 
-.controls-divider {
-    margin-left: 2em;
+.control-group {
+    display: flex;
+    flex-wrap: wrap;
+    row-gap: 10px;
+    column-gap: 2em;
+    align-items: center;
+    justify-content: center;
+    width: 100%;
+}
+
+.control-subgroup {
+    display: inline-flex;
+    flex-wrap: nowrap;
+    align-items: center;
+    gap: 10px;
+}
+
+.control-group.hidden,
+.control-subgroup.hidden {
+    display: none;
 }
 
 .controls button,
@@ -99,11 +119,6 @@ h1 {
 .region-count-btn.active {
     background-color: var(--primary-green);
     color: var(--page-background);
-}
-
-.replication-flow-control {
-    display: inline-flex;
-    align-items: center;
 }
 
 .toggle-switch {
@@ -171,28 +186,7 @@ h1 {
    Region Toggles
    ========================= */
 #region-toggles {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 10px;
-    justify-content: center;
-    align-items: center;
-    margin: 1em 0;
     max-width: 100%;
-}
-
-#region-toggles.hidden {
-    display: none;
-}
-
-#region-count-controls {
-    display: inline-flex;
-    flex-wrap: wrap;
-    gap: 10px;
-    align-items: center;
-}
-
-#region-count-controls.hidden {
-    display: none;
 }
 
 .region-count-3-wrap {
@@ -455,12 +449,6 @@ footer svg {
    Responsive Breakpoints
    ========================= */
 @media (max-width: 600px) {
-    .controls-divider {
-        margin-left: 0;
-        flex-basis: 100%;
-        text-align: center;
-    }
-
     :root {
         --viz-size: min(92vw, 360px);
     }
