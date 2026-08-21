@@ -3,5 +3,6 @@ Visualize High Availability in MongoDB simply.
 
 https://davidhiltenbrand.github.io/MongoDBHighAvailabilityVisualizer/
 
-> **Note:** This app does not currently visualize complex MongoDB deployments such as Sharded Clusters, Dedicated Search Nodes, Analytics Nodes, etc. 
+Supports **Replica Sets** (single primary) and **Sharded Clusters** (multiple shard primaries accepting writes concurrently). Simulate node failures and multi-region outages to explore quorum, failover, and write availability.
 
+> **Note:** This app does not currently visualize Dedicated Search Nodes, Analytics Nodes, etc.

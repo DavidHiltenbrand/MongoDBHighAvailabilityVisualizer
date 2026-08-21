@@ -172,7 +172,9 @@ h1 {
 
 .controls button,
 .region-toggle,
-.region-count-btn {
+.region-count-btn,
+.shard-count-btn,
+.cluster-type-btn {
     padding: var(--control-padding-y) var(--control-padding-x);
     border: 1px solid var(--control-accent);
     background-color: var(--page-background);
@@ -188,7 +190,11 @@ h1 {
 .region-toggle:hover,
 .region-toggle.outage,
 .region-count-btn:hover,
-.region-count-btn.active {
+.region-count-btn.active,
+.shard-count-btn:hover,
+.shard-count-btn.active,
+.cluster-type-btn:hover,
+.cluster-type-btn.active {
     background-color: var(--control-active-bg);
     color: var(--control-active-fg);
 }
@@ -345,6 +351,18 @@ h1 {
 
 .visualization-wrapper.multi-region {
     height: auto;
+}
+
+.visualization-wrapper.sharded-cluster {
+    max-width: min(95vw, 640px);
+}
+
+#visualization-container.sharded-cluster {
+    display: flex;
+    flex-direction: column;
+    align-items: stretch;
+    gap: 0;
+    width: 100%;
 }
 
 #visualization-container {
@@ -589,6 +607,60 @@ footer svg {
     border-top: 2px dotted var(--divider-color);
     width: 80%;
     height: 0;
+}
+
+/* =========================
+   Sharded Cluster Layout
+   ========================= */
+.sharded-section {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    width: 100%;
+    padding: clamp(8px, 2vw, 12px) 0;
+}
+
+.sharded-section-heading {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 2px;
+    margin-bottom: clamp(6px, 1.5vw, 10px);
+    text-align: center;
+}
+
+.sharded-section-title {
+    font-weight: 700;
+    font-size: var(--label-font-size);
+    color: var(--dark-text);
+}
+
+.sharded-section-subtitle {
+    font-size: clamp(10px, calc(var(--viz-size) * 0.028), 12px);
+    color: var(--tagline-color);
+    font-weight: normal;
+}
+
+.sharded-section-nodes {
+    display: flex;
+    justify-content: center;
+    align-items: flex-start;
+    flex-wrap: wrap;
+    gap: var(--node-gap);
+    width: 100%;
+}
+
+.node--static {
+    cursor: default;
+}
+
+.node--mongos .label {
+    color: var(--tagline-color);
+    font-weight: 600;
+}
+
+.node--config .label.secondary {
+    color: var(--secondary-green);
 }
 
 /* =========================

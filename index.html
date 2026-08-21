@@ -20,15 +20,25 @@
 <body>
 
   <h1>MongoDB High Availability Visualizer</h1>
-  <p class="tagline">Click a node to simulate failure. Toggle regions to simulate an outage.</p>
+  <p class="tagline" id="tagline">Click a node to simulate failure. Toggle regions to simulate an outage.</p>
 
   <div class="controls">
     <div class="control-group" aria-label="Configure cluster">
       <div class="control-subgroup">
+        <span>Architecture:</span>
+        <button id="cluster-type-replica-set" class="cluster-type-btn active">Replica Set</button>
+        <button id="cluster-type-sharded" class="cluster-type-btn">Sharded Cluster</button>
+      </div>
+      <div id="replica-set-controls" class="control-subgroup">
         <span>Replica Set:</span>
         <button id="btn-3" class="node-btn active">3 nodes</button>
         <button id="btn-5" class="node-btn">5 nodes</button>
         <button id="btn-7" class="node-btn">7 nodes</button>
+      </div>
+      <div id="shard-count-controls" class="control-subgroup hidden">
+        <span>Shards:</span>
+        <button id="shard-count-2" class="shard-count-btn active">2</button>
+        <button id="shard-count-3" class="shard-count-btn">3</button>
       </div>
       <div class="control-subgroup">
         <span>Deployment:</span>
@@ -143,7 +153,19 @@
     const region3GoldStar = document.getElementById('region-3-gold-star');
     const replicationFlowToggle = document.getElementById('replication-flow-toggle');
     const themeToggle = document.getElementById('themeToggle');
+    const tagline = document.getElementById('tagline');
+    const replicaSetControls = document.getElementById('replica-set-controls');
+    const shardCountControls = document.getElementById('shard-count-controls');
+    const clusterTypeBtns = document.querySelectorAll('.cluster-type-btn');
+    const shardCountBtns = document.querySelectorAll('.shard-count-btn');
     const THEME_STORAGE_KEY = 'theme-preference';
+
+    const CONFIG_SERVER_COUNT = 3;
+    const MONGOS_COUNT = 2;
+    const NODES_PER_SHARD = 3;
+    const MONGOS_ID_BASE = 1000;
+    const SHARD_ID_BASE = 2000;
+    const SHARD_ID_STRIDE = 10;
 
     const COLORS = {
       PRIMARY: 'var(--status-color)',
@@ -162,12 +184,17 @@
 
     // --- Application State ---
     let appState = {
+      clusterType: 'replica-set', // 'replica-set' or 'sharded'
       totalNodes: 0,
       primaryIndex: 0,
       failedIndices: new Set(),
       regionMode: 'single', // 'single' or 'multi'
       regionCount: 2, // 2 or 3
-      nodeRegions: [], // Array of region numbers for each node
+      nodeRegions: [], // Array of region numbers for each node (replica set mode)
+      nodeRegistry: [], // Per-node metadata (sharded mode)
+      shardCount: 2,
+      configPrimaryIndex: 0,
+      shardPrimaryIndices: [],
       regionStatus: {1: true, 2: true, 3: true}, // true = available, false = outage
       showReplicationFlows: false,
     };
@@ -199,6 +226,163 @@
       }
       // fallback: single region
       return Array(numNodes).fill(1);
+    }
+
+    function getShardNodeId(shardIdx, nodeIdx) {
+      return SHARD_ID_BASE + shardIdx * SHARD_ID_STRIDE + nodeIdx;
+    }
+
+    function getMongosId(mongosIdx) {
+      return MONGOS_ID_BASE + mongosIdx;
+    }
+
+    function getNodeMeta(nodeId) {
+      return appState.nodeRegistry.find((entry) => entry.id === nodeId);
+    }
+
+    function getGroupNodeIds(component, componentId = null) {
+      return appState.nodeRegistry
+        .filter((entry) => {
+          if (entry.component !== component) return false;
+          if (componentId === null) return true;
+          return entry.componentId === componentId;
+        })
+        .map((entry) => entry.id);
+    }
+
+    function assignShardRegions(numNodes) {
+      if (appState.regionMode === 'single') {
+        return Array(numNodes).fill(1);
+      }
+      if (appState.regionCount === 2) {
+        if (numNodes === 3) return [1, 1, 2];
+      } else {
+        if (numNodes === 3) return [1, 2, 3];
+      }
+      return Array(numNodes).fill(1);
+    }
+
+    function assignConfigRegions() {
+      if (appState.regionMode === 'single') {
+        return [1, 1, 1];
+      }
+      if (appState.regionCount === 2) {
+        return [1, 1, 2];
+      }
+      return [1, 2, 3];
+    }
+
+    function buildNodeRegistry() {
+      const registry = [];
+
+      const configRegions = assignConfigRegions();
+      for (let i = 0; i < CONFIG_SERVER_COUNT; i++) {
+        registry.push({
+          id: i,
+          component: 'config',
+          componentId: 0,
+          region: configRegions[i],
+        });
+      }
+
+      for (let m = 0; m < MONGOS_COUNT; m++) {
+        registry.push({
+          id: getMongosId(m),
+          component: 'mongos',
+          componentId: m,
+          region: 1,
+        });
+      }
+
+      for (let s = 0; s < appState.shardCount; s++) {
+        const shardRegions = assignShardRegions(NODES_PER_SHARD);
+        for (let n = 0; n < NODES_PER_SHARD; n++) {
+          registry.push({
+            id: getShardNodeId(s, n),
+            component: 'shard',
+            componentId: s,
+            region: shardRegions[n],
+          });
+        }
+      }
+
+      return registry;
+    }
+
+    function getNodeRegion(nodeId) {
+      if (appState.clusterType === 'sharded') {
+        const meta = getNodeMeta(nodeId);
+        return meta ? meta.region : 1;
+      }
+      return appState.nodeRegions[nodeId];
+    }
+
+    function updateControlVisibility() {
+      const isSharded = appState.clusterType === 'sharded';
+      replicaSetControls.classList.toggle('hidden', isSharded);
+      shardCountControls.classList.toggle('hidden', !isSharded);
+      tagline.textContent = isSharded
+        ? 'Each shard has its own primary accepting writes. Click a node to simulate failure.'
+        : 'Click a node to simulate failure. Toggle regions to simulate an outage.';
+    }
+
+    function updateClusterTypeStyles() {
+      clusterTypeBtns.forEach((btn) => {
+        const isReplicaSet = btn.id === 'cluster-type-replica-set';
+        const isActive =
+          (isReplicaSet && appState.clusterType === 'replica-set') ||
+          (!isReplicaSet && appState.clusterType === 'sharded');
+        btn.classList.toggle('active', isActive);
+      });
+      shardCountBtns.forEach((btn) => {
+        btn.classList.toggle('active', parseInt(btn.id.replace('shard-count-', ''), 10) === appState.shardCount);
+      });
+    }
+
+    function createNodeElement(nodeId, isPrimary, roleLabel, options = {}) {
+      const { interactive = true, extraClass = '' } = options;
+      const nodeEl = document.createElement('div');
+      nodeEl.className = `node node--in-row${interactive ? '' : ' node--static'}${extraClass ? ` ${extraClass}` : ''}`;
+      nodeEl.dataset.id = nodeId;
+      nodeEl.dataset.region = getNodeRegion(nodeId);
+
+      nodeEl.innerHTML = `
+        <div class="icon-container">
+          <img src="img/mdb-database.png" alt="MongoDB Database Icon" class="db-icon db-icon--light" />
+          <img src="img/mdb-database-dark.png" alt="" class="db-icon db-icon--dark" aria-hidden="true" />
+          ${failureXSVG}
+        </div>
+        <p class="label ${isPrimary ? 'primary' : 'secondary'}">${roleLabel}</p>
+      `;
+
+      if (interactive) {
+        nodeEl.addEventListener('click', handleNodeClick);
+      }
+
+      return nodeEl;
+    }
+
+    function createShardedSection(title, subtitle) {
+      const section = document.createElement('div');
+      section.className = 'sharded-section';
+
+      const heading = document.createElement('div');
+      heading.className = 'sharded-section-heading';
+      heading.innerHTML = `<span class="sharded-section-title">${title}</span>${subtitle ? `<span class="sharded-section-subtitle">${subtitle}</span>` : ''}`;
+      section.appendChild(heading);
+
+      const nodesRow = document.createElement('div');
+      nodesRow.className = 'sharded-section-nodes';
+      section.appendChild(nodesRow);
+
+      return { section, nodesRow };
+    }
+
+    function createShardedDivider() {
+      const divider = document.createElement('div');
+      divider.className = 'dotted-divider-row';
+      divider.innerHTML = '<div class="dotted-divider"></div>';
+      return divider;
     }
 
     function getNodeExtents(nodeEl) {
@@ -396,6 +580,42 @@
       return overlay;
     }
 
+    function drawReplicationFlowsForGroup(primaryNodeId, groupNodeIds) {
+      const overlay = ensureReplicationOverlay();
+      const flowsGroup = overlay.querySelector('.replication-flows');
+      const primaryNode = vizContainer.querySelector(`.node[data-id='${primaryNodeId}']`);
+      if (!primaryNode || appState.failedIndices.has(primaryNodeId)) return;
+
+      const shouldAnimate = !window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+      for (const nodeId of groupNodeIds) {
+        if (nodeId === primaryNodeId || appState.failedIndices.has(nodeId)) continue;
+
+        const secondaryNode = vizContainer.querySelector(`.node[data-id='${nodeId}']`);
+        if (!secondaryNode) continue;
+
+        const line = getReplicationFlowLine(primaryNode, secondaryNode);
+        const flowLine = document.createElementNS('http://www.w3.org/2000/svg', 'line');
+        flowLine.classList.add('replication-flow');
+        flowLine.setAttribute('x1', line.x1);
+        flowLine.setAttribute('y1', line.y1);
+        flowLine.setAttribute('x2', line.x2);
+        flowLine.setAttribute('y2', line.y2);
+        flowLine.setAttribute('stroke', 'var(--secondary-green)');
+        flowLine.setAttribute('stroke-width', '2.5');
+        flowLine.setAttribute('stroke-linecap', 'round');
+        flowLine.setAttribute('stroke-dasharray', '10 8');
+        flowLine.setAttribute('stroke-dashoffset', '0');
+        flowLine.setAttribute('fill', 'none');
+        flowLine.setAttribute('marker-end', 'url(#replication-arrow)');
+        flowsGroup.appendChild(flowLine);
+
+        if (shouldAnimate) {
+          flowLinesToAnimate.push(flowLine);
+        }
+      }
+    }
+
     /**
      * Draws animated replication arrows from the primary to each healthy secondary.
      */
@@ -415,6 +635,36 @@
       if (!width || !height) return;
 
       overlay.setAttribute('viewBox', `0 0 ${width} ${height}`);
+
+      if (appState.clusterType === 'sharded') {
+        const configIds = getGroupNodeIds('config');
+        const configMajority = Math.floor(configIds.length / 2) + 1;
+        const configFailed = configIds.filter((id) => appState.failedIndices.has(id)).length;
+        if (
+          configFailed < configMajority &&
+          appState.configPrimaryIndex !== -1 &&
+          !appState.failedIndices.has(appState.configPrimaryIndex)
+        ) {
+          drawReplicationFlowsForGroup(appState.configPrimaryIndex, configIds);
+        }
+
+        for (let s = 0; s < appState.shardCount; s++) {
+          const shardIds = getGroupNodeIds('shard', s);
+          const shardMajority = Math.floor(shardIds.length / 2) + 1;
+          const shardFailed = shardIds.filter((id) => appState.failedIndices.has(id)).length;
+          const shardPrimary = appState.shardPrimaryIndices[s];
+          if (
+            shardFailed < shardMajority &&
+            shardPrimary !== -1 &&
+            !appState.failedIndices.has(shardPrimary)
+          ) {
+            drawReplicationFlowsForGroup(shardPrimary, shardIds);
+          }
+        }
+
+        startFlowAnimation();
+        return;
+      }
 
       const primaryIndex = appState.primaryIndex;
       const failedCount = appState.failedIndices.size;
@@ -506,10 +756,104 @@
     }
 
     /**
+     * Generates the sharded cluster visualization.
+     */
+    function generateShardedCluster() {
+      lastObservedSize = { width: 0, height: 0 };
+      vizContainer.innerHTML = '';
+      appState.failedIndices = new Set();
+      appState.nodeRegistry = buildNodeRegistry();
+      appState.configPrimaryIndex = 0;
+      appState.shardPrimaryIndices = Array.from(
+        { length: appState.shardCount },
+        (_, s) => getShardNodeId(s, 0)
+      );
+
+      vizWrapper.classList.remove('single-region');
+      vizWrapper.classList.add('multi-region', 'sharded-cluster');
+      vizWrapper.style.height = '';
+      vizContainer.classList.remove('single-region');
+      vizContainer.classList.add('multi-region', 'sharded-cluster');
+
+      if (appState.regionMode === 'single') {
+        appState.regionStatus = {1: true, 2: true, 3: true};
+        simulateGroup.classList.add('hidden');
+      } else {
+        simulateGroup.classList.remove('hidden');
+        appState.regionStatus = {1: true, 2: true, 3: true};
+        regionToggleBtn3.classList.toggle('hidden', appState.regionCount === 2);
+        [regionToggleBtn1, regionToggleBtn2, regionToggleBtn3].forEach((btn, idx) => {
+          if (appState.regionCount === 2 && idx === 2) return;
+          btn.textContent = `Region ${btn.dataset.region}: Available`;
+          btn.classList.remove('outage');
+        });
+      }
+
+      // --- Mongos routers ---
+      const { section: mongosSection, nodesRow: mongosRow } = createShardedSection(
+        'mongos',
+        'Query routers'
+      );
+      for (let m = 0; m < MONGOS_COUNT; m++) {
+        mongosRow.appendChild(
+          createNodeElement(getMongosId(m), false, 'mongos', { interactive: false, extraClass: 'node--mongos' })
+        );
+      }
+      vizContainer.appendChild(mongosSection);
+      vizContainer.appendChild(createShardedDivider());
+
+      // --- Shards ---
+      for (let s = 0; s < appState.shardCount; s++) {
+        const { section: shardSection, nodesRow: shardRow } = createShardedSection(
+          `Shard ${s + 1}`,
+          'Replica set'
+        );
+        for (let n = 0; n < NODES_PER_SHARD; n++) {
+          const nodeId = getShardNodeId(s, n);
+          shardRow.appendChild(
+            createNodeElement(nodeId, n === 0, n === 0 ? 'Primary' : 'Secondary')
+          );
+        }
+        vizContainer.appendChild(shardSection);
+        if (s < appState.shardCount - 1) {
+          vizContainer.appendChild(createShardedDivider());
+        }
+      }
+
+      vizContainer.appendChild(createShardedDivider());
+
+      // --- Config servers ---
+      const { section: configSection, nodesRow: configRow } = createShardedSection(
+        'Config Servers',
+        'Cluster metadata'
+      );
+      for (let i = 0; i < CONFIG_SERVER_COUNT; i++) {
+        configRow.appendChild(
+          createNodeElement(i, i === 0, i === 0 ? 'Primary' : 'Secondary', { extraClass: 'node--config' })
+        );
+      }
+      vizContainer.appendChild(configSection);
+
+      updateControlVisibility();
+      updateClusterTypeStyles();
+      updateRegionModeStyles();
+      updateReplicationFlowToggle();
+      updateStatus();
+      requestAnimationFrame(() => updateReplicationFlows());
+    }
+
+    /**
      * Clears and generates the node visualization in a circle or grid.
      * @param {number} numNodes The number of nodes to create (3, 5, or 7).
      */
     function generateNodes(numNodes) {
+      if (appState.clusterType === 'sharded') {
+        generateShardedCluster();
+        return;
+      }
+
+      vizWrapper.classList.remove('sharded-cluster');
+      vizContainer.classList.remove('sharded-cluster');
       // 1. Reset state and UI
       lastObservedSize = { width: 0, height: 0 };
       vizContainer.innerHTML = '';
@@ -661,11 +1005,75 @@
       }
 
       // 4. Update UI elements
+      updateControlVisibility();
+      updateClusterTypeStyles();
       updateButtonStyles(numNodes);
       updateRegionModeStyles();
       updateReplicationFlowToggle();
       updateStatus();
       requestAnimationFrame(() => updateReplicationFlows());
+    }
+
+    function syncRegionToggleForNode(nodeId) {
+      if (appState.regionMode !== 'multi') return;
+
+      const region = getNodeRegion(nodeId);
+      const regionNodeIds = [];
+
+      if (appState.clusterType === 'sharded') {
+        for (const entry of appState.nodeRegistry) {
+          if (entry.region === region) regionNodeIds.push(entry.id);
+        }
+      } else {
+        for (let i = 0; i < appState.totalNodes; i++) {
+          if (appState.nodeRegions[i] === region) regionNodeIds.push(i);
+        }
+      }
+
+      const allFailed = regionNodeIds.every((id) => appState.failedIndices.has(id));
+      const regionBtn = Array.from(regionToggleBtns).find(
+        (btn) => parseInt(btn.dataset.region, 10) === region
+      );
+      if (!regionBtn) return;
+
+      if (allFailed) {
+        appState.regionStatus[region] = false;
+        regionBtn.textContent = `Region ${region}: Outage`;
+        regionBtn.classList.add('outage');
+      } else {
+        appState.regionStatus[region] = true;
+        regionBtn.textContent = `Region ${region}: Available`;
+        regionBtn.classList.remove('outage');
+      }
+    }
+
+    function handleShardedNodeClick(nodeId) {
+      const meta = getNodeMeta(nodeId);
+      if (!meta || meta.component === 'mongos') return;
+
+      syncRegionToggleForNode(nodeId);
+
+      if (meta.component === 'config') {
+        if (nodeId === appState.configPrimaryIndex && appState.failedIndices.has(nodeId)) {
+          electGroupPrimary('config', 0, 'configPrimaryIndex');
+        } else if (appState.configPrimaryIndex === -1 && !appState.failedIndices.has(nodeId)) {
+          electGroupPrimary('config', 0, 'configPrimaryIndex');
+        }
+        if (appState.regionMode === 'multi') {
+          electGroupPrimary('config', 0, 'configPrimaryIndex');
+        }
+      } else if (meta.component === 'shard') {
+        const shardIdx = meta.componentId;
+        const shardPrimary = appState.shardPrimaryIndices[shardIdx];
+        if (nodeId === shardPrimary && appState.failedIndices.has(nodeId)) {
+          electGroupPrimary('shard', shardIdx, 'shardPrimaryIndices', shardIdx);
+        } else if (shardPrimary === -1 && !appState.failedIndices.has(nodeId)) {
+          electGroupPrimary('shard', shardIdx, 'shardPrimaryIndices', shardIdx);
+        }
+        if (appState.regionMode === 'multi') {
+          electGroupPrimary('shard', shardIdx, 'shardPrimaryIndices', shardIdx);
+        }
+      }
     }
 
     /**
@@ -676,8 +1084,6 @@
       const nodeEl = event.currentTarget;
       const nodeId = parseInt(nodeEl.dataset.id, 10);
 
-      // --- Allow toggling node regardless of region outage status ---
-      // Toggle failed state
       if (appState.failedIndices.has(nodeId)) {
         appState.failedIndices.delete(nodeId);
         nodeEl.classList.remove('failed');
@@ -686,28 +1092,15 @@
         nodeEl.classList.add('failed');
       }
 
-      // --- Sync region outage button with node states ---
-      if (appState.regionMode === 'multi') {
-        const region = appState.nodeRegions[nodeId];
-        const regionNodeIndices = [];
-        for (let i = 0; i < appState.totalNodes; i++) {
-          if (appState.nodeRegions[i] === region) regionNodeIndices.push(i);
-        }
-        const allFailed = regionNodeIndices.every(idx => appState.failedIndices.has(idx));
-        const regionBtn = Array.from(regionToggleBtns).find(btn => parseInt(btn.dataset.region, 10) === region);
-
-        if (allFailed) {
-          // Mark region as outage
-          appState.regionStatus[region] = false;
-          regionBtn.textContent = `Region ${region}: Outage`;
-          regionBtn.classList.add('outage');
-        } else {
-          // Mark region as available
-          appState.regionStatus[region] = true;
-          regionBtn.textContent = `Region ${region}: Available`;
-          regionBtn.classList.remove('outage');
-        }
+      if (appState.clusterType === 'sharded') {
+        handleShardedNodeClick(nodeId);
+        updateStatus();
+        updateReplicationFlows();
+        return;
       }
+
+      // --- Replica set mode ---
+      syncRegionToggleForNode(nodeId);
 
       // If the primary node just failed, elect a new one
       if (nodeId === appState.primaryIndex && appState.failedIndices.has(nodeId)) {
@@ -744,10 +1137,8 @@
       if (appState.regionCount === 2 && region === 3) return;
       const isAvailable = appState.regionStatus[region];
 
-      // Toggle region status
       appState.regionStatus[region] = !isAvailable;
 
-      // Update button UI
       if (appState.regionStatus[region]) {
         btn.textContent = `Region ${region}: Available`;
         btn.classList.remove('outage');
@@ -756,7 +1147,31 @@
         btn.classList.add('outage');
       }
 
-      // Update all nodes in this region
+      if (appState.clusterType === 'sharded') {
+        for (const entry of appState.nodeRegistry) {
+          if (entry.region !== region || entry.component === 'mongos') continue;
+          const nodeEl = vizContainer.querySelector(`.node[data-id='${entry.id}']`);
+          if (!nodeEl) continue;
+          if (!appState.regionStatus[region]) {
+            appState.failedIndices.add(entry.id);
+            nodeEl.classList.add('failed');
+          } else {
+            appState.failedIndices.delete(entry.id);
+            nodeEl.classList.remove('failed');
+          }
+        }
+
+        electGroupPrimary('config', 0, 'configPrimaryIndex');
+        for (let s = 0; s < appState.shardCount; s++) {
+          electGroupPrimary('shard', s, 'shardPrimaryIndices', s);
+        }
+
+        updateStatus();
+        updateReplicationFlows();
+        return;
+      }
+
+      // --- Replica set mode ---
       for (let i = 0; i < appState.totalNodes; i++) {
         if (appState.nodeRegions[i] === region) {
           const nodeEl = vizContainer.querySelector(`.node[data-id='${i}']`);
@@ -804,8 +1219,190 @@
       const mode = btn.id === 'multi-region-btn' ? 'multi' : 'single';
       if (appState.regionMode !== mode) {
         appState.regionMode = mode;
-        generateNodes(appState.totalNodes);
+        if (appState.clusterType === 'sharded') {
+          generateShardedCluster();
+        } else {
+          generateNodes(appState.totalNodes);
+        }
       }
+    }
+
+    /**
+     * Handles cluster type toggle (replica set / sharded).
+     */
+    function handleClusterTypeToggle(event) {
+      const btn = event.currentTarget;
+      const type = btn.id === 'cluster-type-sharded' ? 'sharded' : 'replica-set';
+      if (appState.clusterType !== type) {
+        appState.clusterType = type;
+        if (type === 'sharded') {
+          generateShardedCluster();
+        } else {
+          generateNodes(appState.totalNodes || 3);
+        }
+      }
+    }
+
+    function getGroupPrimaryStateKey(stateKey, shardIdx) {
+      if (stateKey === 'shardPrimaryIndices') {
+        return appState.shardPrimaryIndices[shardIdx];
+      }
+      return appState[stateKey];
+    }
+
+    function setGroupPrimaryStateKey(stateKey, shardIdx, value) {
+      if (stateKey === 'shardPrimaryIndices') {
+        appState.shardPrimaryIndices[shardIdx] = value;
+      } else {
+        appState[stateKey] = value;
+      }
+    }
+
+    /**
+     * Elects a new primary within a replica set group (config server or shard).
+     */
+    function electGroupPrimary(component, componentId, stateKey, shardIdx = null) {
+      const groupNodeIds = getGroupNodeIds(component, componentId);
+      const failedInGroup = groupNodeIds.filter((id) => appState.failedIndices.has(id)).length;
+      const majority = Math.floor(groupNodeIds.length / 2) + 1;
+      const currentPrimary = getGroupPrimaryStateKey(stateKey, shardIdx);
+
+      if (groupNodeIds.length - failedInGroup < majority) {
+        updateGroupPrimaryNode(currentPrimary, -1, stateKey, shardIdx);
+        return;
+      }
+
+      if (appState.regionMode === 'multi') {
+        for (let region = 1; region <= appState.regionCount; region++) {
+          for (const nodeId of groupNodeIds) {
+            const meta = getNodeMeta(nodeId);
+            if (
+              meta &&
+              meta.region === region &&
+              !appState.failedIndices.has(nodeId)
+            ) {
+              updateGroupPrimaryNode(currentPrimary, nodeId, stateKey, shardIdx);
+              return;
+            }
+          }
+        }
+        updateGroupPrimaryNode(currentPrimary, -1, stateKey, shardIdx);
+        return;
+      }
+
+      for (let i = 1; i <= groupNodeIds.length; i++) {
+        const startIdx = currentPrimary === -1 ? 0 : groupNodeIds.indexOf(currentPrimary);
+        const candidateIdx = groupNodeIds[(startIdx + i) % groupNodeIds.length];
+        if (!appState.failedIndices.has(candidateIdx)) {
+          updateGroupPrimaryNode(currentPrimary, candidateIdx, stateKey, shardIdx);
+          return;
+        }
+      }
+      updateGroupPrimaryNode(currentPrimary, -1, stateKey, shardIdx);
+    }
+
+    function updateGroupPrimaryNode(oldPrimaryId, newPrimaryId, stateKey, shardIdx = null) {
+      if (oldPrimaryId !== -1) {
+        const oldPrimaryNode = vizContainer.querySelector(`.node[data-id='${oldPrimaryId}']`);
+        if (oldPrimaryNode) {
+          const oldLabel = oldPrimaryNode.querySelector('.label');
+          oldLabel.textContent = 'Secondary';
+          oldLabel.classList.remove('primary');
+          oldLabel.classList.add('secondary');
+        }
+      }
+
+      setGroupPrimaryStateKey(stateKey, shardIdx, newPrimaryId);
+
+      if (newPrimaryId !== -1) {
+        const newPrimaryNode = vizContainer.querySelector(`.node[data-id='${newPrimaryId}']`);
+        if (newPrimaryNode) {
+          const newLabel = newPrimaryNode.querySelector('.label');
+          newLabel.textContent = 'Primary';
+          newLabel.classList.remove('secondary');
+          newLabel.classList.add('primary');
+        }
+      }
+
+      updateReplicationFlows();
+    }
+
+    function isGroupWritable(groupNodeIds, primaryId) {
+      const failedInGroup = groupNodeIds.filter((id) => appState.failedIndices.has(id)).length;
+      const majority = Math.floor(groupNodeIds.length / 2) + 1;
+      return (
+        primaryId !== -1 &&
+        failedInGroup < majority &&
+        !appState.failedIndices.has(primaryId)
+      );
+    }
+
+    function updateShardedStatus() {
+      const configIds = getGroupNodeIds('config');
+      const configWritable = isGroupWritable(configIds, appState.configPrimaryIndex);
+
+      let writableShards = 0;
+      let totalInteractiveNodes = configIds.length + appState.shardCount * NODES_PER_SHARD;
+      let failedInteractive = 0;
+
+      for (const id of configIds) {
+        if (appState.failedIndices.has(id)) failedInteractive++;
+      }
+
+      for (let s = 0; s < appState.shardCount; s++) {
+        const shardIds = getGroupNodeIds('shard', s);
+        for (const id of shardIds) {
+          if (appState.failedIndices.has(id)) failedInteractive++;
+        }
+        const shardPrimary = appState.shardPrimaryIndices[s];
+        if (isGroupWritable(shardIds, shardPrimary)) {
+          writableShards++;
+          if (shardPrimary !== -1) {
+            const primaryNode = vizContainer.querySelector(`.node[data-id='${shardPrimary}']`);
+            if (primaryNode) {
+              const label = primaryNode.querySelector('.label');
+              label.textContent = 'Primary';
+              label.classList.remove('secondary');
+              label.classList.add('primary');
+            }
+          }
+        } else if (shardPrimary !== -1) {
+          const primaryNode = vizContainer.querySelector(`.node[data-id='${shardPrimary}']`);
+          if (primaryNode) {
+            const label = primaryNode.querySelector('.label');
+            label.textContent = 'Secondary';
+            label.classList.remove('primary');
+            label.classList.add('secondary');
+          }
+        }
+      }
+
+      if (failedInteractive === totalInteractiveNodes) {
+        statusText.innerHTML = 'Status: <span style="color:' + COLORS.FAILURE + '">Cluster Offline ❌</span>';
+        return;
+      }
+
+      if (writableShards === appState.shardCount) {
+        if (!configWritable) {
+          statusText.innerHTML =
+            'Status: <span style="color:' + COLORS.PRIMARY + '">All Shards Accepting Writes</span> ' +
+            '<span style="color:' + COLORS.FAILURE + '">(Config Read-Only ⚠️)</span>';
+        } else {
+          statusText.innerHTML =
+            'Status: <span style="color:' + COLORS.PRIMARY + '">All Shards Accepting Writes</span>';
+        }
+        return;
+      }
+
+      if (writableShards === 0) {
+        statusText.innerHTML =
+          'Status: <span style="color:' + COLORS.FAILURE + '">No Shards Accepting Writes ⚠️</span>';
+        return;
+      }
+
+      statusText.innerHTML =
+        'Status: <span style="color:' + COLORS.FAILURE + '">Partial Write Availability ⚠️</span> ' +
+        '<span style="color:' + COLORS.PRIMARY + '">(' + writableShards + '/' + appState.shardCount + ' shards writable)</span>';
     }
 
     /**
@@ -889,6 +1486,11 @@
      * Also demotes the primary to secondary if we lose majority (read-only).
      */
     function updateStatus() {
+      if (appState.clusterType === 'sharded') {
+        updateShardedStatus();
+        return;
+      }
+
       const failedCount = appState.failedIndices.size;
       const total = appState.totalNodes;
       const majority = Math.floor(total / 2) + 1;
@@ -971,11 +1573,28 @@
      * Resets the app to its original state: all nodes available, current node count and deployment mode.
      */
     function resetApp() {
-      // Do not change appState.regionMode or node count, just regenerate nodes with current settings
-      generateNodes(appState.totalNodes);
+      if (appState.clusterType === 'sharded') {
+        generateShardedCluster();
+      } else {
+        generateNodes(appState.totalNodes);
+      }
     }
 
     // --- Event Listeners & Initialization ---
+
+    clusterTypeBtns.forEach((btn) => {
+      btn.addEventListener('click', handleClusterTypeToggle);
+    });
+
+    shardCountBtns.forEach((btn) => {
+      btn.addEventListener('click', () => {
+        const count = parseInt(btn.id.replace('shard-count-', ''), 10);
+        if (appState.shardCount !== count) {
+          appState.shardCount = count;
+          generateShardedCluster();
+        }
+      });
+    });
 
     nodeButtons.forEach(button => {
       button.addEventListener('click', (e) => {
@@ -1019,7 +1638,7 @@
 
       if (resizeRaf) cancelAnimationFrame(resizeRaf);
       resizeRaf = requestAnimationFrame(() => {
-        if (appState.regionMode === 'single') {
+        if (appState.clusterType === 'replica-set' && appState.regionMode === 'single') {
           layoutCircleNodes();
         } else if (appState.showReplicationFlows) {
           updateReplicationFlows();
@@ -1028,8 +1647,9 @@
     });
     resizeObserver.observe(vizWrapper);
 
-    // Initial load with 3 nodes
+    // Initial load with 3-node replica set
     initTheme();
+    updateControlVisibility();
     window.addEventListener('load', () => generateNodes(3));
 
     // --- Add region count button logic ---
