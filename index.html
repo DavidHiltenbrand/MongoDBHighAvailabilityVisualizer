@@ -339,8 +339,54 @@
       });
     }
 
+    function getShardedNodePresentation(nodeId) {
+      const meta = getNodeMeta(nodeId);
+      if (!meta) {
+        return {
+          roleLabel: '',
+          isPrimary: false,
+          componentLabel: '',
+          interactive: true,
+          extraClass: '',
+        };
+      }
+
+      if (meta.component === 'mongos') {
+        return {
+          roleLabel: 'mongos',
+          isPrimary: false,
+          componentLabel: 'Query router',
+          interactive: false,
+          extraClass: 'node--mongos',
+        };
+      }
+
+      const isPrimary =
+        meta.component === 'config'
+          ? nodeId === appState.configPrimaryIndex
+          : nodeId === appState.shardPrimaryIndices[meta.componentId];
+
+      return {
+        roleLabel: isPrimary ? 'Primary' : 'Secondary',
+        isPrimary,
+        componentLabel: meta.component === 'config' ? 'Config' : `Shard ${meta.componentId + 1}`,
+        interactive: true,
+        extraClass: meta.component === 'config' ? 'node--config' : '',
+      };
+    }
+
+    function compareShardedNodeIds(a, b) {
+      const metaA = getNodeMeta(a);
+      const metaB = getNodeMeta(b);
+      const componentOrder = { mongos: 0, shard: 1, config: 2 };
+      const orderDiff = componentOrder[metaA.component] - componentOrder[metaB.component];
+      if (orderDiff !== 0) return orderDiff;
+      if (metaA.componentId !== metaB.componentId) return metaA.componentId - metaB.componentId;
+      return a - b;
+    }
+
     function createNodeElement(nodeId, isPrimary, roleLabel, options = {}) {
-      const { interactive = true, extraClass = '' } = options;
+      const { interactive = true, extraClass = '', componentLabel = '' } = options;
       const nodeEl = document.createElement('div');
       nodeEl.className = `node node--in-row${interactive ? '' : ' node--static'}${extraClass ? ` ${extraClass}` : ''}`;
       nodeEl.dataset.id = nodeId;
@@ -353,6 +399,7 @@
           ${failureXSVG}
         </div>
         <p class="label ${isPrimary ? 'primary' : 'secondary'}">${roleLabel}</p>
+        ${componentLabel ? `<span class="component-label">${componentLabel}</span>` : ''}
       `;
 
       if (interactive) {
@@ -360,6 +407,43 @@
       }
 
       return nodeEl;
+    }
+
+    function createShardedRegionRow(region, nodeIds) {
+      const row = document.createElement('div');
+      row.className = 'region-row sharded-region-row';
+
+      const regionLabel = document.createElement('span');
+      regionLabel.className = 'region-row-label';
+      regionLabel.textContent = `Region ${region}`;
+      row.appendChild(regionLabel);
+
+      const nodesWrapper = document.createElement('div');
+      nodesWrapper.className = 'region-row-nodes';
+
+      [...nodeIds].sort(compareShardedNodeIds).forEach((nodeId) => {
+        const presentation = getShardedNodePresentation(nodeId);
+        nodesWrapper.appendChild(
+          createNodeElement(
+            nodeId,
+            presentation.isPrimary,
+            presentation.roleLabel,
+            {
+              interactive: presentation.interactive,
+              extraClass: presentation.extraClass,
+              componentLabel: presentation.componentLabel,
+            }
+          )
+        );
+      });
+
+      row.appendChild(nodesWrapper);
+
+      const rightSpacer = document.createElement('span');
+      rightSpacer.className = 'region-row-spacer';
+      row.appendChild(rightSpacer);
+
+      return row;
     }
 
     function createShardedSection(title, subtitle) {
@@ -769,15 +853,17 @@
         (_, s) => getShardNodeId(s, 0)
       );
 
-      vizWrapper.classList.remove('single-region');
-      vizWrapper.classList.add('multi-region', 'sharded-cluster');
+      vizWrapper.classList.add('sharded-cluster');
       vizWrapper.style.height = '';
-      vizContainer.classList.remove('single-region');
-      vizContainer.classList.add('multi-region', 'sharded-cluster');
+      vizContainer.classList.add('sharded-cluster');
 
       if (appState.regionMode === 'single') {
         appState.regionStatus = {1: true, 2: true, 3: true};
         simulateGroup.classList.add('hidden');
+        vizWrapper.classList.remove('multi-region');
+        vizWrapper.classList.add('single-region');
+        vizContainer.classList.remove('multi-region');
+        vizContainer.classList.add('single-region');
       } else {
         simulateGroup.classList.remove('hidden');
         appState.regionStatus = {1: true, 2: true, 3: true};
@@ -787,52 +873,87 @@
           btn.textContent = `Region ${btn.dataset.region}: Available`;
           btn.classList.remove('outage');
         });
+        vizWrapper.classList.remove('single-region');
+        vizWrapper.classList.add('multi-region');
+        vizContainer.classList.remove('single-region');
+        vizContainer.classList.add('multi-region');
       }
 
-      // --- Mongos routers ---
-      const { section: mongosSection, nodesRow: mongosRow } = createShardedSection(
-        'mongos',
-        'Query routers'
-      );
-      for (let m = 0; m < MONGOS_COUNT; m++) {
-        mongosRow.appendChild(
-          createNodeElement(getMongosId(m), false, 'mongos', { interactive: false, extraClass: 'node--mongos' })
-        );
-      }
-      vizContainer.appendChild(mongosSection);
-      vizContainer.appendChild(createShardedDivider());
+      if (appState.regionMode === 'multi') {
+        const regionNodes = {1: [], 2: [], 3: []};
+        for (const entry of appState.nodeRegistry) {
+          regionNodes[entry.region].push(entry.id);
+        }
 
-      // --- Shards ---
-      for (let s = 0; s < appState.shardCount; s++) {
-        const { section: shardSection, nodesRow: shardRow } = createShardedSection(
-          `Shard ${s + 1}`,
-          'Replica set'
+        const regionsToShow = appState.regionCount === 2 ? [1, 2] : [1, 2, 3];
+        regionsToShow.forEach((region, idx) => {
+          vizContainer.appendChild(createShardedRegionRow(region, regionNodes[region]));
+          if (idx < regionsToShow.length - 1) {
+            vizContainer.appendChild(createShardedDivider());
+          }
+        });
+      } else {
+        // --- Mongos routers ---
+        const { section: mongosSection, nodesRow: mongosRow } = createShardedSection(
+          'mongos',
+          'Query routers'
         );
-        for (let n = 0; n < NODES_PER_SHARD; n++) {
-          const nodeId = getShardNodeId(s, n);
-          shardRow.appendChild(
-            createNodeElement(nodeId, n === 0, n === 0 ? 'Primary' : 'Secondary')
+        for (let m = 0; m < MONGOS_COUNT; m++) {
+          const nodeId = getMongosId(m);
+          const presentation = getShardedNodePresentation(nodeId);
+          mongosRow.appendChild(
+            createNodeElement(nodeId, presentation.isPrimary, presentation.roleLabel, {
+              interactive: presentation.interactive,
+              extraClass: presentation.extraClass,
+              componentLabel: presentation.componentLabel,
+            })
           );
         }
-        vizContainer.appendChild(shardSection);
-        if (s < appState.shardCount - 1) {
-          vizContainer.appendChild(createShardedDivider());
+        vizContainer.appendChild(mongosSection);
+        vizContainer.appendChild(createShardedDivider());
+
+        // --- Shards ---
+        for (let s = 0; s < appState.shardCount; s++) {
+          const { section: shardSection, nodesRow: shardRow } = createShardedSection(
+            `Shard ${s + 1}`,
+            'Replica set'
+          );
+          for (let n = 0; n < NODES_PER_SHARD; n++) {
+            const nodeId = getShardNodeId(s, n);
+            const presentation = getShardedNodePresentation(nodeId);
+            shardRow.appendChild(
+              createNodeElement(nodeId, presentation.isPrimary, presentation.roleLabel, {
+                interactive: presentation.interactive,
+                extraClass: presentation.extraClass,
+                componentLabel: presentation.componentLabel,
+              })
+            );
+          }
+          vizContainer.appendChild(shardSection);
+          if (s < appState.shardCount - 1) {
+            vizContainer.appendChild(createShardedDivider());
+          }
         }
-      }
 
-      vizContainer.appendChild(createShardedDivider());
+        vizContainer.appendChild(createShardedDivider());
 
-      // --- Config servers ---
-      const { section: configSection, nodesRow: configRow } = createShardedSection(
-        'Config Servers',
-        'Cluster metadata'
-      );
-      for (let i = 0; i < CONFIG_SERVER_COUNT; i++) {
-        configRow.appendChild(
-          createNodeElement(i, i === 0, i === 0 ? 'Primary' : 'Secondary', { extraClass: 'node--config' })
+        // --- Config servers ---
+        const { section: configSection, nodesRow: configRow } = createShardedSection(
+          'Config Servers',
+          'Cluster metadata'
         );
+        for (let i = 0; i < CONFIG_SERVER_COUNT; i++) {
+          const presentation = getShardedNodePresentation(i);
+          configRow.appendChild(
+            createNodeElement(i, presentation.isPrimary, presentation.roleLabel, {
+              interactive: presentation.interactive,
+              extraClass: presentation.extraClass,
+              componentLabel: presentation.componentLabel,
+            })
+          );
+        }
+        vizContainer.appendChild(configSection);
       }
-      vizContainer.appendChild(configSection);
 
       updateControlVisibility();
       updateClusterTypeStyles();
@@ -1014,21 +1135,56 @@
       requestAnimationFrame(() => updateReplicationFlows());
     }
 
+    function getShardedRegionNodeIds(region, includeMongos = false) {
+      return appState.nodeRegistry
+        .filter((entry) => {
+          if (entry.region !== region) return false;
+          if (!includeMongos && entry.component === 'mongos') return false;
+          return true;
+        })
+        .map((entry) => entry.id);
+    }
+
+    function setShardedRegionNodeFailure(region, failed, includeMongos = true) {
+      for (const nodeId of getShardedRegionNodeIds(region, includeMongos)) {
+        const nodeEl = vizContainer.querySelector(`.node[data-id='${nodeId}']`);
+        if (!nodeEl) continue;
+        if (failed) {
+          appState.failedIndices.add(nodeId);
+          nodeEl.classList.add('failed');
+        } else {
+          appState.failedIndices.delete(nodeId);
+          nodeEl.classList.remove('failed');
+        }
+      }
+    }
+
+    function setShardedMongosFailure(region, failed) {
+      for (const entry of appState.nodeRegistry) {
+        if (entry.region !== region || entry.component !== 'mongos') continue;
+        const nodeEl = vizContainer.querySelector(`.node[data-id='${entry.id}']`);
+        if (!nodeEl) continue;
+        if (failed) {
+          appState.failedIndices.add(entry.id);
+          nodeEl.classList.add('failed');
+        } else {
+          appState.failedIndices.delete(entry.id);
+          nodeEl.classList.remove('failed');
+        }
+      }
+    }
+
     function syncRegionToggleForNode(nodeId) {
       if (appState.regionMode !== 'multi') return;
 
       const region = getNodeRegion(nodeId);
-      const regionNodeIds = [];
+      const regionNodeIds = appState.clusterType === 'sharded'
+        ? getShardedRegionNodeIds(region)
+        : appState.nodeRegions
+            .map((nodeRegion, index) => (nodeRegion === region ? index : null))
+            .filter((index) => index !== null);
 
-      if (appState.clusterType === 'sharded') {
-        for (const entry of appState.nodeRegistry) {
-          if (entry.region === region) regionNodeIds.push(entry.id);
-        }
-      } else {
-        for (let i = 0; i < appState.totalNodes; i++) {
-          if (appState.nodeRegions[i] === region) regionNodeIds.push(i);
-        }
-      }
+      if (regionNodeIds.length === 0) return;
 
       const allFailed = regionNodeIds.every((id) => appState.failedIndices.has(id));
       const regionBtn = Array.from(regionToggleBtns).find(
@@ -1040,10 +1196,12 @@
         appState.regionStatus[region] = false;
         regionBtn.textContent = `Region ${region}: Outage`;
         regionBtn.classList.add('outage');
+        setShardedMongosFailure(region, true);
       } else {
         appState.regionStatus[region] = true;
         regionBtn.textContent = `Region ${region}: Available`;
         regionBtn.classList.remove('outage');
+        setShardedMongosFailure(region, false);
       }
     }
 
@@ -1148,18 +1306,7 @@
       }
 
       if (appState.clusterType === 'sharded') {
-        for (const entry of appState.nodeRegistry) {
-          if (entry.region !== region || entry.component === 'mongos') continue;
-          const nodeEl = vizContainer.querySelector(`.node[data-id='${entry.id}']`);
-          if (!nodeEl) continue;
-          if (!appState.regionStatus[region]) {
-            appState.failedIndices.add(entry.id);
-            nodeEl.classList.add('failed');
-          } else {
-            appState.failedIndices.delete(entry.id);
-            nodeEl.classList.remove('failed');
-          }
-        }
+        setShardedRegionNodeFailure(region, !appState.regionStatus[region], true);
 
         electGroupPrimary('config', 0, 'configPrimaryIndex');
         for (let s = 0; s < appState.shardCount; s++) {

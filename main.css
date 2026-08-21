@@ -663,6 +663,23 @@ footer svg {
     color: var(--secondary-green);
 }
 
+.component-label {
+    margin-top: 2px;
+    font-size: clamp(9px, calc(var(--viz-size) * 0.025), 11px);
+    color: var(--tagline-color);
+    font-weight: 600;
+    text-align: center;
+    line-height: 1.2;
+}
+
+.sharded-region-row {
+    align-items: flex-start;
+}
+
+.sharded-region-row .region-row-nodes {
+    align-items: flex-start;
+}
+
 /* =========================
    Responsive Breakpoints
    ========================= */
